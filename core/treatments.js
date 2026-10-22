@@ -11,12 +11,15 @@
 export const TREATMENTS = {
   chemo: {
     label: 'Chemotherapy',
+    noun: 'chemotherapy',
     hint: 'IV or oral chemotherapy',
     expect: [
       {
         id: 'chemo_hair',
         title: 'Hair thinning or loss',
         weeks: [1, 4],
+        band: [3, 5],
+        short: 'Hair may shed',
         area: 'hair',
         body: 'With many chemotherapy drugs, hair starts to shed two to four weeks after the first dose, and brows and lashes can thin too. Not every drug does this, so ask your team what to expect from yours.',
         action: { label: 'Save your Hair & Brow Print', to: 'look' },
@@ -25,6 +28,8 @@ export const TREATMENTS = {
         id: 'chemo_dry',
         title: 'Dry, tight or sensitive skin',
         weeks: [1, null],
+        band: [2, null],
+        short: 'Dry skin',
         concern: 'moisture',
         body: 'Chemotherapy commonly leaves skin drier and more reactive than usual. Short lukewarm washes, a fragrance-free cream twice a day and skipping exfoliants usually help.',
         needs: ['ceramide', 'humectant', 'occlusive'],
@@ -48,12 +53,15 @@ export const TREATMENTS = {
   },
   radiation: {
     label: 'Radiation therapy',
+    noun: 'radiation therapy',
     hint: 'Especially to the head, face or neck',
     expect: [
       {
         id: 'rad_redness',
         title: 'Skin reaction in the treated area',
         weeks: [2, null],
+        band: [3, null],
+        short: 'Skin reaction',
         concern: 'redness',
         body: 'Skin in the treated area often turns pink or red, then dry or itchy, usually starting a few weeks in. Ahead only sees your face, so this applies most if your face or neck is in the treatment field.',
         careTeam: 'Tell your radiation team about any skin change in the treated area. Many teams ask you not to put creams on it shortly before a session.',
@@ -64,12 +72,15 @@ export const TREATMENTS = {
   },
   egfr: {
     label: 'Targeted therapy: EGFR inhibitor',
+    noun: 'EGFR inhibitors',
     hint: 'e.g. cetuximab, panitumumab, erlotinib, gefitinib, afatinib, osimertinib',
     expect: [
       {
         id: 'egfr_rash',
         title: 'Acne-like rash',
         weeks: [1, 6],
+        band: [1, 4],
+        short: 'Acne-like rash',
         concern: 'acne',
         alsoConcerns: ['redness'],
         body: 'An acne-like rash on the face, scalp or chest is one of the most common side effects of EGFR inhibitors, usually in the first weeks. It looks like acne but it is not acne, and over-the-counter acne products such as benzoyl peroxide or salicylic acid can make it worse.',
@@ -82,6 +93,8 @@ export const TREATMENTS = {
         id: 'egfr_dry',
         title: 'Dry skin later on',
         weeks: [4, null],
+        band: [5, null],
+        short: 'Dry skin',
         concern: 'moisture',
         body: 'After the first month or so, dry and flaky skin often follows the rash. Thick fragrance-free creams work better than lotions.',
         needs: ['ceramide', 'occlusive'],
@@ -90,12 +103,15 @@ export const TREATMENTS = {
   },
   immuno: {
     label: 'Immunotherapy',
+    noun: 'immunotherapy',
     hint: 'e.g. checkpoint inhibitors',
     expect: [
       {
         id: 'immuno_rash',
         title: 'Rash or itching',
         weeks: [0, null],
+        band: [1, null],
+        short: 'Rash or itch (any time)',
         concern: 'redness',
         body: 'Immunotherapy can cause a rash or itching at any point, even months in. It is usually mild, but your team needs to hear about it because it can be an immune-related side effect.',
         careTeam: 'Report any new rash or itching to your care team, even if it seems minor.',
@@ -106,12 +122,15 @@ export const TREATMENTS = {
   },
   hormone: {
     label: 'Hormone therapy',
+    noun: 'hormone therapy',
     hint: 'e.g. tamoxifen, aromatase inhibitors, ADT',
     expect: [
       {
         id: 'hormone_dry',
         title: 'Drier, thinner-feeling skin',
         weeks: [2, null],
+        band: [3, null],
+        short: 'Drier skin',
         concern: 'moisture',
         body: 'Lower hormone levels can make skin drier and less elastic over time. A richer cream and a gentle cleanser help.',
         needs: ['ceramide', 'humectant'],

@@ -71,7 +71,7 @@ export function watchNotes(profile, comparison, now = new Date()) {
         else existing.drops.push(drop);
         if (row.key === lead.e.concern) existing.concern = row.key;
         existing.concerns.push(row.key);
-        existing.title = existing.drops.join(' · ');
+        existing.title = existing.drops.join(', ');
         existing.level = existing.level === 'call' || lead.escalate ? 'call' : 'watch';
         existing.avoid = [...new Set([...existing.avoid, ...avoid])];
         existing.needs = [...new Set([...existing.needs, ...needs])];
@@ -83,9 +83,9 @@ export function watchNotes(profile, comparison, now = new Date()) {
         level: lead.escalate ? 'call' : 'watch',
         title: drop,
         drops: [drop],
-        subtitle: `Common with ${TREATMENTS[lead.key].label.toLowerCase()}: ${lead.e.title.toLowerCase()}`,
+        subtitle: `${lead.e.title}, common with ${TREATMENTS[lead.key].noun}`,
         body: lead.e.body,
-        also: matches.slice(1).filter((m) => m.key !== lead.key).map((m) => `${TREATMENTS[m.key].label}: ${m.e.title.toLowerCase()}`),
+        also: matches.slice(1).filter((m) => m.key !== lead.key).map((m) => `${m.e.title.toLowerCase()} (${TREATMENTS[m.key].noun})`),
         careTeam: lead.e.careTeam || null,
         concern: row.key,
         concerns: [row.key],

@@ -1,0 +1,19 @@
+# One-click deploy on Render (https://render.com/docs/blueprint-spec).
+# Set YOUCAM_API_KEY and APP_ACCESS_CODE in the Render dashboard.
+services:
+  - type: web
+    name: ahead-skinai
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/status
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: YOUCAM_API_KEY
+        sync: false
+      - key: APP_ACCESS_CODE
+        sync: false
+      - key: PER_IP_DAILY_LIMIT
+        value: 40

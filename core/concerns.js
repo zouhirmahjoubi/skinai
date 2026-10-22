@@ -61,6 +61,15 @@ export function normalizeSkinResult(results) {
   return out;
 }
 
+/**
+ * The number Ahead shows. YouCam's ui_score is deliberately flattered for
+ * motivation; for tracking change we show the raw model score, rounded.
+ */
+export function displayScore(score) {
+  const v = score?.raw ?? score?.ui;
+  return v === null || v === undefined ? null : Math.round(v);
+}
+
 function num(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;

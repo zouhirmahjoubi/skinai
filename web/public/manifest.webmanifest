@@ -1,0 +1,10 @@
+{
+  "name": "Ahead",
+  "short_name": "Ahead",
+  "description": "Skin and self-image care through cancer treatment.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f3fa",
+  "theme_color": "#5847b0",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
