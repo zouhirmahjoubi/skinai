@@ -24,6 +24,7 @@ const face = load('live-face-attr-analysis.json');
 test('live face-attr response yields face and brow shape', { skip: !face && 'no recorded fixture' }, () => {
   const f = normalizeFaceAttributes(face.data.results);
   assert.ok(f.faceShape && f.browShape && f.browThickness);
+  assert.doesNotMatch(`${f.browShape} ${f.browThickness}`, /^(obscured|unknown)\b|\b(obscured|unknown)$/i, 'record fixtures with both brows visible');
 });
 
 const tone = load('live-skin-tone-analysis.json');

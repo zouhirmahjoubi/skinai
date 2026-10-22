@@ -29,7 +29,9 @@ const withTimeout = (init = {}) => ({ ...init, signal: init.signal ?? AbortSigna
 const CODE_BY_STATUS = { 401: 'InvalidApiKey', 429: 'RateLimitExceeded' };
 
 // Worth another poll: the task is still alive on YouCam and is billed even if we stop.
-const isTransient = (err) => err?.code === 'NetworkError' || [429, 502, 503, 504].includes(err?.status);
+const isTransient = (err) => err?.code === 'NetworkError' || [502, 503, 504].includes(err?.status);
+// The rate limit is 250 requests per 300 s per key and per IP, polls included.
+const isRateLimited = (err) => err?.status === 429;
 
 export function createYouCamClient({ apiKey, baseUrl = BASE_URL, fetchImpl = fetch, sleep = wait, pollTimeoutMs = 150_000 } = {}) {
   if (!apiKey) throw new Error('createYouCamClient needs an apiKey');
@@ -88,18 +90,27 @@ export function createYouCamClient({ apiKey, baseUrl = BASE_URL, fetchImpl = fet
 
   // Polling is mandatory: an abandoned task still consumes units and later
   // reads as InvalidTaskId. Back off gently; a failed poll is retried, since
-  // it does not cancel the task.
+  // it does not cancel the task. Rate-limited polls back off until the
+  // deadline; network and 502-504 errors get four retries in a row.
   async function pollTask(feature, taskId) {
     const v = VERSIONS[feature] || 'v2.0';
     const deadline = Date.now() + pollTimeoutMs;
     let delay = 1500;
     let strikes = 0;
+    let limited = 0;
+    let lastLimit = null;
     while (Date.now() < deadline) {
       let data;
       try {
         data = await call(`/s2s/${v}/task/${feature}/${encodeURIComponent(taskId)}`);
         strikes = 0;
+        limited = 0;
       } catch (err) {
+        if (isRateLimited(err)) {
+          lastLimit = err;
+          await sleep(Math.min(2000 * 2 ** limited++, 15_000, Math.max(0, deadline - Date.now())));
+          continue;
+        }
         if (!isTransient(err) || ++strikes > 4) {
           err.billed = true; // the task started and may still be charged
           throw err;
@@ -118,7 +129,7 @@ export function createYouCamClient({ apiKey, baseUrl = BASE_URL, fetchImpl = fet
       await sleep(hinted > 0 ? Math.min(Math.max(hinted * 1000, 1000), 10_000) : delay);
       delay = Math.min(delay * 1.4, 6000);
     }
-    const timeout = new YouCamError('Timed out waiting for YouCam', 'Timeout', 504);
+    const timeout = limited ? lastLimit : new YouCamError('Timed out waiting for YouCam', 'Timeout', 504);
     timeout.billed = true;
     throw timeout;
   }

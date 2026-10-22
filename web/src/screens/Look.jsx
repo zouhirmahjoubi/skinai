@@ -17,13 +17,30 @@ async function fileIdFor(key, dataUrl) {
   fileIds.set(key, fileId);
   return fileId;
 }
-async function withFile(key, dataUrl, fn) {
+// YouCam reports a file it has lost or never fully received as one of these.
+const REUPLOAD = new Set(['InvalidFileId', 'unknown_internal_error', 'error_download_image']);
+/**
+ * Runs fn with a file id per photo ({ key, dataUrl, ref }). If YouCam lost a
+ * file, every photo is uploaded again and fn runs once more: at most two
+ * tasks per tap. A product photo (ref) that fails to upload is reported
+ * against the product photo, never as a reason to retake the portrait.
+ */
+async function withFiles(photos, fn) {
+  const ids = () =>
+    Promise.all(
+      photos.map((p) =>
+        fileIdFor(p.key, p.dataUrl).catch((err) => {
+          if (p.ref && err.fix === 'photo') err.fix = 'ref';
+          throw err;
+        }),
+      ),
+    );
   try {
-    return await fn(await fileIdFor(key, dataUrl));
+    return await fn(...(await ids()));
   } catch (err) {
-    if (err.code !== 'InvalidFileId' && err.code !== 'unknown_internal_error') throw err;
-    fileIds.delete(key);
-    return fn(await fileIdFor(key, dataUrl));
+    if (!REUPLOAD.has(err.code)) throw err;
+    for (const p of photos) fileIds.delete(p.key);
+    return fn(...(await ids()));
   }
 }
 
@@ -95,6 +112,29 @@ function ProductPhotoPicker({ label, hint, linkHint, photo, onPhoto, url, onUrl,
 
 const PRINT_STEPS = ['Uploading securely', 'Reading colours and face shape'];
 
+/** Says which half of the last print photo couldn't be read, and why. */
+function PrintGaps({ print }) {
+  const halves = [
+    ['colors', 'Colours (hair, brows, skin)'],
+    ['face', 'Face and brow shape'],
+  ].filter(([k]) => print.errors?.[k]);
+  if (!halves.length) return null;
+  return (
+    <div className="banner" role="status">
+      {halves.map(([k, label]) => {
+        const e = print.errors[k];
+        const when = print.kept?.[k] ? new Date(`${print.kept[k]}T12:00:00`).toLocaleDateString() : null;
+        return (
+          <p key={k}>
+            <strong>{label} couldn’t be read from this photo.</strong> {e.message}{' '}
+            {when ? `Your earlier reading from ${when} is kept.` : e.fix === 'photo' ? 'Retake to add them.' : 'Try Retake again in a moment.'}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 function PrintSection({ retake, setRetake }) {
   const { print, savePrint } = useStore();
   const [step, setStep] = useState(-1);
@@ -109,7 +149,12 @@ function PrintSection({ retake, setRetake }) {
       const { fileId } = await api.upload(shot.blob);
       setStep(1);
       const result = await api.print(fileId);
-      const p = { date: today(), photo: shot.dataUrl, colors: result.colors, face: result.face, partial: result.partial, demo: Boolean(result.demo) };
+      // If one half couldn't be read, keep that half from an earlier real print rather than losing it.
+      const prev = print && !print.sample ? print : null;
+      const colors = result.colors || prev?.colors || null;
+      const face = result.face || prev?.face || null;
+      const kept = { colors: !result.colors && prev?.colors ? prev.date : null, face: !result.face && prev?.face ? prev.date : null };
+      const p = { date: today(), photo: shot.dataUrl, colors, face, partial: !colors || !face, errors: result.errors || null, kept, demo: Boolean(result.demo) };
       fileIds.set(`print:${p.date}`, fileId);
       await savePrint(p);
       setRetake(false);
@@ -153,7 +198,8 @@ function PrintSection({ retake, setRetake }) {
         <span className="fine">Saved {new Date(`${print.date}T12:00:00`).toLocaleDateString()}</span>
       </div>
       {(print.sample || print.demo) && <div className="banner info">{print.sample ? 'Sample print.' : 'Demo result: colours and shapes are placeholders until a YouCam key is configured.'}</div>}
-      {justSaved && <p className="fine" role="status">Saved on this device. Your print can’t be retaken once your hair changes, so download a copy now and then from Settings.</p>}
+      <PrintGaps print={print} />
+      {justSaved && !print.partial && <p className="fine" role="status">Saved on this device. Your print can’t be retaken once your hair changes, so download a copy now and then from Settings.</p>}
       <div className="swatches">
         <Swatch label="Hair colour family" hex={c.hair_color} name={c.hair_color_name} family />
         <Swatch label="Brows" hex={c.eyebrow_color} />
@@ -269,11 +315,10 @@ function WigSection({ portraitState }) {
     setSaved(false);
     try {
       const mine = colourKeepable && keepColor;
-      const out = await withFile(`portrait:${portrait.id}`, portrait.dataUrl, (fileId) =>
-        refPhoto
-          ? withFile(`ref:${refPhoto.id}`, refPhoto.dataUrl, (refFileId) => api.hairTryOn({ fileId, refFileId }))
-          : api.hairTryOn({ fileId, templateId: refUrl ? null : chosen.id, refUrl: refUrl || undefined, keepColor: mine }),
-      );
+      const me = { key: `portrait:${portrait.id}`, dataUrl: portrait.dataUrl };
+      const out = refPhoto
+        ? await withFiles([me, { key: `ref:${refPhoto.id}`, dataUrl: refPhoto.dataUrl, ref: true }], (fileId, refFileId) => api.hairTryOn({ fileId, refFileId }))
+        : await withFiles([me], (fileId) => api.hairTryOn({ fileId, templateId: refUrl ? null : chosen.id, refUrl: refUrl || undefined, keepColor: mine }));
       setResult({ image: out.image, demo: out.demo, label: isRef ? 'Wig from a shop photo' : chosen.title, mine });
     } catch (err) {
       setError(err);
@@ -335,6 +380,7 @@ function WigSection({ portraitState }) {
               if (u) setRefPhoto(null);
             }}
             linkHint="A direct link to a .jpg photo, no more than 1024 px on the long side."
+            minShort={320}
           />
           {colourKeepable ? (
             <label className="toggle">
@@ -380,11 +426,10 @@ function HeadwearSection({ portraitState }) {
     setError(null);
     setSaved(false);
     try {
-      const out = await withFile(`portrait:${portrait.id}`, portrait.dataUrl, (fileId) =>
-        refPhoto
-          ? withFile(`ref:${refPhoto.id}`, refPhoto.dataUrl, (refFileId) => api.hatTryOn({ fileId, refFileId, gender }))
-          : api.hatTryOn({ fileId, refUrl, gender }),
-      );
+      const me = { key: `portrait:${portrait.id}`, dataUrl: portrait.dataUrl };
+      const out = refPhoto
+        ? await withFiles([me, { key: `ref:${refPhoto.id}`, dataUrl: refPhoto.dataUrl, ref: true }], (fileId, refFileId) => api.hatTryOn({ fileId, refFileId, gender }))
+        : await withFiles([me], (fileId) => api.hatTryOn({ fileId, refUrl, gender }));
       setResult(out);
     } catch (err) {
       setError(err);
@@ -415,7 +460,7 @@ function HeadwearSection({ portraitState }) {
           {tooSmall && <div className="banner">Head-covering try-on needs a portrait of at least 512 px on each side. Change the photo above to a sharper one.</div>}
           <ProductPhotoPicker
             label="Add a photo of the hat, cap or headband"
-            hint="A shop’s product photo with just the one item, filling a good part of the picture (at least 512 × 512 px)."
+            hint="A shop’s product photo with just the one item, filling a good part of the picture (at least 512 × 512 px). A photo of someone wearing it needs at least 800 × 800 px."
             photo={refPhoto}
             onPhoto={(p) => {
               setRefPhoto(p);
@@ -510,7 +555,7 @@ function BrowSection({ onNeedPrint }) {
     setSaved(false);
     try {
       // thickness 0: makeup-vto thickness is relative to the brow in the photo being rendered.
-      const out = await withFile(source.key, source.dataUrl, (fileId) => api.browTryOn({ fileId, pattern, color, intensity, thickness: 0 }));
+      const out = await withFiles([source], (fileId) => api.browTryOn({ fileId, pattern, color, intensity, thickness: 0 }));
       setResult(out);
     } catch (err) {
       setError(err);

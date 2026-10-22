@@ -56,10 +56,18 @@ export function normalizeFaceAttributes(results) {
   const faceRaw = findKey(results, 'faceshape');
   const brow = findKey(results, 'eyebrow') || {};
   const pick = (v) => (typeof v === 'string' ? v : v?.shape || v?.type || v?.value || null);
+  // YouCam reports a brow it can't see as 'Obscured' (shape) or 'Unknown'
+  // (thickness), per side: prefer the side it could read, and keep the
+  // placeholder only when neither side was readable.
+  const known = (v, placeholder) => {
+    const s = pick(v);
+    return s && s.toLowerCase() !== placeholder ? s : null;
+  };
+  const face = pick(faceRaw);
   return {
-    faceShape: pick(faceRaw),
-    browShape: pick(brow.left_shape) || pick(brow.right_shape) || null,
-    browThickness: pick(brow.left_body_thickness) || pick(brow.right_body_thickness) || null,
+    faceShape: face && face.toLowerCase() !== 'unknown' ? face : null,
+    browShape: known(brow.left_shape, 'obscured') || known(brow.right_shape, 'obscured') || pick(brow.left_shape) || pick(brow.right_shape) || null,
+    browThickness: known(brow.left_body_thickness, 'unknown') || known(brow.right_body_thickness, 'unknown') || pick(brow.left_body_thickness) || pick(brow.right_body_thickness) || null,
   };
 }
 

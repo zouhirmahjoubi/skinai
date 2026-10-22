@@ -41,7 +41,7 @@ The server keeps a unit budget per IP and per server. The domain logic lives in 
 - an INCI ingredient classifier;
 - CIEDE2000 colour matching.
 
-A demo mode and a labelled sample journey let anyone explore without spending units, and `npm run smoke` runs every YouCam call live.
+A demo mode and a labelled sample journey let anyone explore without spending units, and `npm run smoke` runs every YouCam call live. Every request Ahead sends was also cross-checked against the request, response and error schemas in Perfect Corp's official CLI package (`@youcam_cli/youcam-cli`), using the REA static analyser to map its client modules; the paths, versions, fields and enums all match. If one half of the print (colours or face shape) fails, the other half is kept, the user is told why, and the units for the failed half are not counted.
 
 ## Challenges
 

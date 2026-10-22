@@ -33,7 +33,7 @@ export function sampleJourney(now = new Date()) {
     print: {
       sample: true,
       date: day(-3, start),
-      colors: { hair_color: '#42280E', hair_color_name: 'Brown', eyebrow_color: '#33241d', skin_color: '#b98a6e', eye_color: '#4a3020', lip_color: '#a85e5e' },
+      colors: { hair_color: '#42280E', hair_color_name: 'Brown', eyebrow_color: '#33241d', skin_color: '#b98a6e', eye_color: '#4a3020', eye_color_name: 'Brown', lip_color: '#a85e5e' },
       face: { faceShape: 'Oval', browShape: 'Soft Angled', browThickness: 'Average' },
     },
   };

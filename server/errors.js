@@ -38,7 +38,7 @@ const PHOTO = {
   error_bald_image: HAIR_GONE,
   error_nsfw_content_detected: 'This photo was rejected by the safety filter.',
   error_decode_image: 'The photo could not be read. Try another one.',
-  error_download_image: 'YouCam could not download that image. Check the link is public.',
+  error_download_image: 'The analysis service couldn’t read this photo. Please take it again.',
   InvalidFileId: 'This photo has expired on the analysis service. Please take it again.',
 };
 
@@ -52,6 +52,9 @@ const SERVICE = {
   RateLimitExceeded: 'Too many requests right now. Please wait a minute.',
   Timeout: 'The analysis took too long. Please try again.',
   TaskTimeout: 'The analysis took too long. Please try again.',
+  // Every task's documented error enum includes these. Neither is the user's photo at fault.
+  exceed_nsfw_retry_limits: 'YouCam’s safety filter stopped this result. Try again, or use a different photo.',
+  invalid_parameter: 'This option couldn’t be applied. Try a different style or setting.',
 };
 
 export function explain(code = '') {
@@ -63,8 +66,10 @@ export function explain(code = '') {
     const fix = code === 'CreditInsufficiency' || /Auth|ApiKey|AccessToken/.test(code) ? 'setup' : 'service';
     return { fix, message: SERVICE[code] };
   }
+  // The catch-all engine code ("Others"); YouCam also reports a file that never
+  // finished uploading this way, so the browser re-uploads once before showing it.
   if (code === 'unknown_internal_error') {
-    return { fix: 'photo', message: 'The service could not process this photo. Please take it again.' };
+    return { fix: 'service', message: 'The analysis service couldn’t finish this one. Please try again in a moment.' };
   }
   return { fix: 'service', message: 'Something went wrong on the analysis service. Please try again.' };
 }

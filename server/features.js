@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import { dstActionsFor, normalizeSkinResult, CONCERNS } from '../core/concerns.js';
 import { browEffects, normalizeFaceAttributes, BROW_PATTERNS } from '../core/brows.js';
 import { downloadAsDataUrl } from './youcam.js';
+import { explain } from './errors.js';
 
 const EYEBROW_CATALOG_URL = 'https://plugins-media.makeupar.com/wcm-saas/patterns/eyebrows.json';
 const TEMPLATE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -70,10 +71,19 @@ export function createLiveFeatures(client, { fetchImpl = fetch } = {}) {
       if (tone.status === 'rejected' && face.status === 'rejected') {
         throw tone.reason?.billed ? tone.reason : face.reason?.billed ? face.reason : tone.reason;
       }
+      // One half failing still saves the other, and says why the missing half is missing.
+      const why = (r) => {
+        if (r.status !== 'rejected') return null;
+        const code = r.reason?.code || 'TaskFailed';
+        return { code, ...explain(code), billed: Boolean(r.reason?.billed) };
+      };
+      const colors = tone.status === 'fulfilled' ? tone.value?.color || null : null;
+      const faceAttrs = face.status === 'fulfilled' ? normalizeFaceAttributes(face.value) : null;
       return {
-        colors: tone.status === 'fulfilled' ? tone.value?.color || null : null,
-        face: face.status === 'fulfilled' ? normalizeFaceAttributes(face.value) : null,
-        partial: tone.status === 'rejected' || face.status === 'rejected',
+        colors,
+        face: faceAttrs,
+        partial: !colors || !faceAttrs,
+        errors: { colors: why(tone), face: why(face) },
       };
     },
 
@@ -186,7 +196,7 @@ export function createDemoFeatures() {
     async print() {
       await pause(700);
       return {
-        colors: { skin_color: '#c69c82', hair_color: '#42280E', hair_color_name: 'Brown', eyebrow_color: '#3e2b22', eye_color: '#5b3a24', lip_color: '#b8676b' },
+        colors: { skin_color: '#c69c82', hair_color: '#42280E', hair_color_name: 'Brown', eyebrow_color: '#3e2b22', eye_color: '#5b3a24', eye_color_name: 'Brown', lip_color: '#b8676b' },
         face: { faceShape: 'Oval', browShape: 'Soft Angled', browThickness: 'Average' },
         partial: false,
         demo: true,

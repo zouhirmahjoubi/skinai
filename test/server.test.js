@@ -391,3 +391,96 @@ test('try-on errors about the portrait are not blamed on the product photo', asy
   assert.equal(ambiguous.fix, 'ref');
   assert.match(ambiguous.message, /your portrait or in the wig photo/);
 });
+
+test('rate-limited polls keep backing off until the deadline instead of giving up', async () => {
+  let polls = 0;
+  const limited = () => new Response(JSON.stringify({ status: 429, error: 'Too many requests' }), { status: 429 });
+  const { fetchImpl } = fakeYouCam([
+    ['POST', /task\/hat$/, () => ({ status: 200, data: { task_id: 'R' } })],
+    ['GET', /task\/hat\/R$/, () => (++polls <= 7 ? limited() : { status: 200, data: { task_status: 'success', results: { url: 'https://x/y.jpg' } } })],
+  ]);
+  const client = createYouCamClient({ apiKey: 'k', fetchImpl, sleep: noSleep });
+  assert.equal((await client.runTask('hat', {})).url, 'https://x/y.jpg');
+
+  const always = fakeYouCam([
+    ['POST', /task\/hat$/, () => ({ status: 200, data: { task_id: 'R' } })],
+    ['GET', /task\/hat\/R$/, limited],
+  ]);
+  const slow = createYouCamClient({ apiKey: 'k', fetchImpl: always.fetchImpl, sleep: noSleep, pollTimeoutMs: 30 });
+  await assert.rejects(slow.runTask('hat', {}), (e) => e.code === 'RateLimitExceeded' && e.billed === true);
+});
+
+test('a print with one failed half keeps the other, says why, and refunds the failed half', async () => {
+  const { fetchImpl } = fakeYouCam([
+    ['POST', /task\/skin-tone-analysis$/, () => ({ status: 200, data: { task_id: 'TONE' } })],
+    ['GET', /task\/skin-tone-analysis\/TONE$/, () => ({ status: 200, data: { task_status: 'error', error: 'error_pose' } })],
+    ['POST', /task\/face-attr-analysis$/, () => ({ status: 200, data: { task_id: 'FACE' } })],
+    ['GET', /task\/face-attr-analysis\/FACE$/, () => ({ status: 200, data: { task_status: 'success', results: { faceshape: 'Oval', eyebrow: { left_shape: 'Straight' } } } })],
+  ]);
+  const live = createLiveFeatures(createYouCamClient({ apiKey: 'k', fetchImpl, sleep: noSleep }), { fetchImpl });
+  const out = await live.print({ fileId: 'F' });
+  assert.equal(out.colors, null);
+  assert.equal(out.face.faceShape, 'Oval');
+  assert.equal(out.partial, true);
+  assert.equal(out.errors.colors.code, 'error_pose');
+  assert.equal(out.errors.colors.fix, 'photo');
+  assert.equal(out.errors.face, null);
+
+  // The route refunds the 20 skin-tone units: two prints fit in a 40-unit allowance.
+  const features = { ...createDemoFeatures(), mode: 'live', print: () => live.print({ fileId: 'F' }) };
+  await withServer(createApp({ features, perIpDailyUnits: 40, logger: {} }), async (base) => {
+    const post = () => fetch(`${base}/api/print`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fileId: 'F' }) });
+    const first = await (await post()).json();
+    assert.equal(first.errors.colors.code, 'error_pose');
+    assert.equal('billed' in first.errors.colors, false);
+    assert.equal((await post()).status, 200);
+    assert.equal((await post()).status, 429);
+  });
+});
+
+test('engine errors that could be either photo name both, and internal errors are not blamed on a photo', async () => {
+  const fail = (code) => async () => {
+    throw new YouCamError(code, code, 422);
+  };
+  const run = async (route, code, body = {}) => {
+    const features = { ...createDemoFeatures(), mode: 'live', hairTryOn: fail(code), hatTryOn: fail(code) };
+    let error;
+    await withServer(createApp({ features, logger: {} }), async (base) => {
+      const r = await fetch(`${base}/api/${route}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fileId: 'F', refFileId: 'R', gender: 'female', ...body }) });
+      error = (await r.json()).error;
+    });
+    return error;
+  };
+  const pose = await run('hat/try-on', 'error_pose');
+  assert.equal(pose.fix, 'ref');
+  assert.match(pose.message, /your portrait or the head-covering photo/);
+  assert.match((await run('hat/try-on', 'error_nsfw_content_detected')).message, /safety filter/);
+  assert.match((await run('hair/try-on', 'error_download_image')).message, /your portrait or the wig photo/);
+  const internal = await run('hair/try-on', 'unknown_internal_error');
+  assert.equal(internal.fix, 'service');
+  assert.equal(explain('exceed_nsfw_retry_limits').fix, 'service');
+  assert.doesNotMatch(explain('error_download_image').message, /link/);
+});
+
+test('hair try-on only accepts string style and photo ids', async () => {
+  let called = 0;
+  const features = { ...createDemoFeatures(), hairTryOn: async () => ((called += 1), { image: 'x' }) };
+  await withServer(createApp({ features, logger: {} }), async (base) => {
+    const post = (b) => fetch(`${base}/api/hair/try-on`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fileId: 'F', ...b }) });
+    assert.equal((await (await post({ templateId: {} })).json()).error.code, 'MissingStyle');
+    assert.equal((await (await post({ refFileId: 123 })).json()).error.code, 'MissingStyle');
+    assert.equal(called, 0);
+    assert.equal((await post({ templateId: 'demo_bob' })).status, 200);
+  });
+});
+
+test('unit balance reads are shared for a few seconds', async () => {
+  let reads = 0;
+  const features = { ...createDemoFeatures(), units: async () => ((reads += 1), 42) };
+  await withServer(createApp({ features, logger: {} }), async (base) => {
+    const all = await Promise.all([1, 2, 3].map(() => fetch(`${base}/api/units`).then((r) => r.json())));
+    assert.deepEqual(all.map((x) => x.units), [42, 42, 42]);
+    await fetch(`${base}/api/units`);
+    assert.equal(reads, 1);
+  });
+});

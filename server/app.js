@@ -12,7 +12,8 @@ const MAX_UPLOAD = 10 * 1024 * 1024;
 // YouCam units per call (docs.perfectcorp.com unit tables): Skin Analysis
 // 5-8 concerns = 12 SD / 16 HD; Facial Color Tones 20 + Face Attributes
 // (1-5 features) 10; Hairstyle VTO v2.1 2; Hat VTO 2; Makeup VTO 1.
-export const UNIT_COST = { skinHd: 16, skinSd: 12, print: 30, hair: 2, hat: 2, brows: 1 };
+// Skin tone 20 + face attributes 10 make up the print.
+export const UNIT_COST = { skinHd: 16, skinSd: 12, tone: 20, face: 10, print: 30, hair: 2, hat: 2, brows: 1 };
 
 const CSP = [
   "default-src 'self'",
@@ -37,6 +38,16 @@ const SOURCE_ONLY = {
   'head-covering': new Set([...PORTRAIT_ERRORS, 'error_no_face']),
 };
 const isSourceError = (code, what) => SOURCE_ONLY[what]?.has(code) || /^error_(src|face_position)_/.test(code);
+// Shared engine codes that can come from either photo (the official enum is the
+// same for every task), so the message names both instead of guessing.
+const EITHER_PHOTO = {
+  error_no_face: (what) => `YouCam couldn’t find a face in your portrait or in the ${what} photo. Check your face is clearly in view${what === 'wig' ? ', and use a wig photo on a real model facing forward, not on a mannequin or laid flat' : ''}.`,
+  error_pose: (what) => `YouCam couldn’t read the pose in your portrait or the ${what} photo. Use a portrait facing the camera with your head level, or try a different ${what} photo.`,
+  error_face_parsing: (what) => `YouCam couldn’t read the face in your portrait or the ${what} photo. Try a sharper portrait in even light, or a different ${what} photo.`,
+  error_decode_image: (what) => `YouCam couldn’t open your portrait or the ${what} photo. Try again, or try a different ${what} photo.`,
+  error_download_image: (what) => `YouCam couldn’t open your portrait or the ${what} photo. Try again, or try a different ${what} photo.`,
+  error_nsfw_content_detected: (what) => `YouCam’s safety filter stopped this preview. Try again, or try a different ${what} photo.`,
+};
 
 export function createApp({
   features,
@@ -103,6 +114,8 @@ export function createApp({
   };
   const limited = (res, code, message) => res.status(429).json({ error: { code, fix: 'service', message } });
 
+  // A route can hand back part of what it charged (res.locals.refund units) when
+  // part of the work failed without being billed.
   const quota = (costOf) => (req, res, next) => {
     if (features.mode !== 'live') return next();
     rollDay();
@@ -116,9 +129,12 @@ export function createApp({
     serverUnits += cost;
     const chargedDay = day;
     res.on('finish', () => {
-      if (res.locals.billed || res.statusCode < 400 || res.statusCode >= 500 || chargedDay !== day) return;
-      usage.set(key, Math.max(0, (usage.get(key) || 0) - cost));
-      serverUnits = Math.max(0, serverUnits - cost);
+      if (chargedDay !== day) return;
+      const failed = res.statusCode >= 400 && res.statusCode < 500 && !res.locals.billed;
+      const back = failed ? cost : res.statusCode < 400 ? Math.min(cost, Number(res.locals.refund) || 0) : 0;
+      if (!back) return;
+      usage.set(key, Math.max(0, (usage.get(key) || 0) - back));
+      serverUnits = Math.max(0, serverUnits - back);
     });
     next();
   };
@@ -158,7 +174,12 @@ export function createApp({
 
   api.post('/print', quota(() => UNIT_COST.print), wrap(async (req, res) => {
     requireFileId(req.body?.fileId);
-    res.json(await features.print({ fileId: req.body.fileId }));
+    const result = await features.print({ fileId: req.body.fileId });
+    // A half that failed with a task error wasn't charged by YouCam.
+    const { colors: toneErr, face: faceErr } = result.errors || {};
+    res.locals.refund = (toneErr && !toneErr.billed ? UNIT_COST.tone : 0) + (faceErr && !faceErr.billed ? UNIT_COST.face : 0);
+    const plain = (e) => (e ? { code: e.code, fix: e.fix, message: e.message } : null);
+    res.json(result.errors ? { ...result, errors: { colors: plain(toneErr), face: plain(faceErr) } } : result);
   }));
 
   // A wig or hat photo from a shop: either already uploaded (refFileId, the
@@ -190,10 +211,9 @@ export function createApp({
       return await fn();
     } catch (err) {
       if (err instanceof YouCamError && !err.expose && !isSourceError(err.code, what) && explain(err.code).fix === 'photo') {
-        const message =
-          err.code === 'error_no_face'
-            ? 'YouCam couldn’t find a face in your portrait or in the wig photo. Check your face is clearly in view, and use a wig photo on a real model facing forward, not on a mannequin or laid flat.'
-            : `This ${what} photo didn’t work. Try a different, clearer product photo.${what === 'wig' ? ' If the styles above work on your portrait, your portrait is fine.' : ''}`;
+        const message = EITHER_PHOTO[err.code]
+          ? EITHER_PHOTO[err.code](what)
+          : `This ${what} photo didn’t work. Try a different, clearer product photo.${what === 'wig' ? ' If the styles above work on your portrait, your portrait is fine.' : ''}`;
         throw badRequest(err.code, message, 'ref');
       }
       throw err;
@@ -203,11 +223,10 @@ export function createApp({
   api.post('/hair/try-on', quota(() => UNIT_COST.hair), wrap(async (req, res) => {
     const { fileId, templateId, refUrl, refFileId, keepColor } = req.body || {};
     requireFileId(fileId);
-    if (!templateId && !refUrl && !refFileId) throw badRequest('MissingStyle', 'Choose a style or add a wig photo.', 'ref');
-    if (templateId) {
-      return res.json(await features.hairTryOn({ fileId, templateId: String(templateId).slice(0, 128), keepColor: Boolean(keepColor) }));
-    }
+    const template = typeof templateId === 'string' ? templateId.trim().slice(0, 128) : '';
+    if (template) return res.json(await features.hairTryOn({ fileId, templateId: template, keepColor: Boolean(keepColor) }));
     const ref = await resolveRef(req, { refFileId, refUrl }, { maxLongSide: 1024, types: ['image/jpeg'] });
+    if (!ref) throw badRequest('MissingStyle', 'Choose a style or add a wig photo.', 'ref');
     res.json(await asRefErrors(() => features.hairTryOn({ fileId, refFileId: ref }), 'wig'));
   }));
 
@@ -215,8 +234,8 @@ export function createApp({
     const { fileId, refUrl, refFileId, gender } = req.body || {};
     requireFileId(fileId);
     if (gender !== 'female' && gender !== 'male') throw badRequest('MissingGender', 'Choose how the preview should be styled.', 'service');
-    if (!refUrl && !refFileId) throw badRequest('MissingStyle', 'Add a photo of the hat, cap or headband.', 'ref');
     const ref = await resolveRef(req, { refFileId, refUrl }, { minSide: 512, maxLongSide: 4096 });
+    if (!ref) throw badRequest('MissingStyle', 'Add a photo of the hat, cap or headband.', 'ref');
     res.json(await asRefErrors(() => features.hatTryOn({ fileId, refFileId: ref, gender }), 'head-covering'));
   }));
 
@@ -226,7 +245,19 @@ export function createApp({
     res.json(await features.browTryOn({ fileId, pattern: String(pattern || 'Original2').slice(0, 64), color, intensity, thickness, curvature }));
   }));
 
-  api.get('/units', wrap(async (req, res) => res.json({ units: await features.units() })));
+  // Each balance read is a YouCam request against the key's shared rate limit,
+  // so answers are reused for 15 s and concurrent reads share one request.
+  let unitsMemo = null;
+  api.get('/units', wrap(async (req, res) => {
+    if (!unitsMemo || Date.now() - unitsMemo.at > 15_000) {
+      const pending = Promise.resolve().then(() => features.units());
+      unitsMemo = { at: Date.now(), pending };
+      pending.catch(() => {
+        if (unitsMemo?.pending === pending) unitsMemo = null;
+      });
+    }
+    res.json({ units: await unitsMemo.pending });
+  }));
 
   api.use((req, res) => res.status(404).json({ error: { code: 'NotFound', fix: 'service', message: 'Unknown API route.' } }));
 

@@ -308,3 +308,13 @@ test('the deeper-skin redness caveat covers every treatment read from redness', 
   assert.ok(ids(['immuno']).includes('tone'));
   assert.ok(!ids(['hormone']).includes('tone'));
 });
+
+test('an obscured brow on one side falls back to the side YouCam could read', () => {
+  const f = normalizeFaceAttributes({ faceshape: 'Unknown', eyebrow: { left_shape: 'Obscured', right_shape: 'Soft Angled', left_body_thickness: 'Unknown', right_body_thickness: 'Dense' } });
+  assert.equal(f.faceShape, null);
+  assert.equal(f.browShape, 'Soft Angled');
+  assert.equal(f.browThickness, 'Dense');
+  assert.equal(browPatternFor(f.browShape), browPatternFor('Soft Angled'));
+  const both = normalizeFaceAttributes({ eyebrow: { left_shape: 'Obscured', right_shape: 'Obscured' } });
+  assert.equal(both.browShape, 'Obscured');
+});

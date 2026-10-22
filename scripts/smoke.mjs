@@ -77,7 +77,13 @@ if (skinUp && tier) {
 const up = await step('upload (print)', () => f.upload(face, info));
 let browsDone = false;
 if (up) {
-  const print = await step('skin-tone + face-attr', () => f.print({ fileId: up.fileId }));
+  // print() keeps one half when the other fails, so check both halves here.
+  const print = await step('skin-tone + face-attr', async () => {
+    const p = await f.print({ fileId: up.fileId });
+    const missing = [!p.colors && `skin-tone (${p.errors?.colors?.code})`, !p.face && `face-attr (${p.errors?.face?.code})`].filter(Boolean);
+    if (missing.length) throw Object.assign(new Error(`missing ${missing.join(' and ')}`), { code: 'Partial' });
+    return p;
+  });
   if (print) ok('print', JSON.stringify(print));
   if (fitsMakeup(info)) {
     const brow = await step('makeup-vto eyebrows (face photo)', () => f.browTryOn({ fileId: up.fileId, pattern: 'SoftArch1', color: '#3b2a20', intensity: 55 }));
