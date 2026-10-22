@@ -5,7 +5,7 @@ import { createLiveFeatures, createDemoFeatures, MAX_DEMO_BYTES } from '../serve
 import { fetchRefImage, isPrivateAddress, RefImageError } from '../server/ref-image.js';
 import { createApp, isPublicHttpsUrl } from '../server/app.js';
 import { sniffImage, skinTierFor } from '../server/image-info.js';
-import { explain } from '../server/errors.js';
+import { explain, YouCamError } from '../server/errors.js';
 
 // Minimal fake of the YouCam HTTP surface, recording every call.
 function fakeYouCam(handlers) {
@@ -314,4 +314,80 @@ test('reference links: private hosts, redirects to them, and oversize photos are
   await assert.rejects(fetchRefImage('https://shop.example/wig.jpg', { fetchImpl, lookup, maxLongSide: 1024 }), (e) => e.code === 'error_exceed_max_image_size');
   const ok = await fetchRefImage('https://shop.example/wig.jpg', { fetchImpl, lookup });
   assert.equal(ok.info.width, 2048);
+});
+
+test('reference links: a chunked body is capped while streaming, and wig links must be JPEG', async () => {
+  const lookup = async () => [{ address: '93.184.216.34' }];
+  let cancelled = false;
+  const endless = () =>
+    new Response(
+      new ReadableStream({
+        pull(c) {
+          c.enqueue(new Uint8Array(1024 * 1024));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      }),
+      { status: 200 },
+    );
+  await assert.rejects(fetchRefImage('https://shop.example/huge', { fetchImpl: async () => endless(), lookup }), (e) => e.code === 'exceed_max_filesize');
+  assert.ok(cancelled, 'the oversize body is cancelled');
+
+  const png = Buffer.alloc(33);
+  png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52], 0);
+  png.writeUInt32BE(800, 16);
+  png.writeUInt32BE(800, 20);
+  const fetchPng = async () => new Response(png, { status: 200 });
+  await assert.rejects(fetchRefImage('https://shop.example/wig.png', { fetchImpl: fetchPng, lookup, types: ['image/jpeg'] }), (e) => e.code === 'error_decode_image');
+  assert.equal((await fetchRefImage('https://shop.example/hat.png', { fetchImpl: fetchPng, lookup })).info.type, 'image/png');
+});
+
+test('a task that may still be billed is not refunded', async () => {
+  const fail = (billed) => async () => {
+    const e = new YouCamError('slow down', 'RateLimitExceeded', 429);
+    if (billed) e.billed = true;
+    throw e;
+  };
+  const post = (base) => fetch(`${base}/api/print`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fileId: 'F' }) });
+  const demo = createDemoFeatures();
+  await withServer(createApp({ features: { ...demo, mode: 'live', print: fail(false) }, perIpDailyUnits: 30, logger: {} }), async (base) => {
+    assert.equal((await post(base)).status, 429);
+    assert.equal((await (await post(base)).json()).error.code, 'RateLimitExceeded', 'refunded: the second try reaches YouCam');
+  });
+  await withServer(createApp({ features: { ...demo, mode: 'live', print: fail(true) }, perIpDailyUnits: 30, logger: {} }), async (base) => {
+    assert.equal((await post(base)).status, 429);
+    assert.equal((await (await post(base)).json()).error.code, 'DailyLimit', 'billed: the units stay spent');
+  });
+
+  // The client marks a poll it gives up on as billed.
+  const { fetchImpl } = fakeYouCam([
+    ['POST', /task\/hat$/, () => ({ status: 200, data: { task_id: 'T' } })],
+    ['GET', /task\/hat\/T$/, () => new Response('{}', { status: 400 })],
+  ]);
+  const client = createYouCamClient({ apiKey: 'k', fetchImpl, sleep: noSleep });
+  await assert.rejects(client.runTask('hat', {}), (e) => e.billed === true);
+});
+
+test('try-on errors about the portrait are not blamed on the product photo', async () => {
+  const fail = (code) => async () => {
+    throw new YouCamError(code, code, 422);
+  };
+  const demo = createDemoFeatures();
+  const run = async (route, code, body) => {
+    const features = { ...demo, mode: 'live', hairTryOn: fail(code), hatTryOn: fail(code) };
+    let error;
+    await withServer(createApp({ features, logger: {} }), async (base) => {
+      const r = await fetch(`${base}/api/${route}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fileId: 'F', refFileId: 'R', ...body }) });
+      error = (await r.json()).error;
+    });
+    return error;
+  };
+  assert.equal((await run('hat/try-on', 'error_no_face', { gender: 'female' })).fix, 'photo');
+  assert.equal((await run('hat/try-on', 'error_src_face_too_small', { gender: 'female' })).fix, 'photo');
+  assert.equal((await run('hair/try-on', 'error_face_pose')).fix, 'photo');
+  assert.equal((await run('hair/try-on', 'error_no_shoulder')).fix, 'photo');
+  const ambiguous = await run('hair/try-on', 'error_no_face');
+  assert.equal(ambiguous.fix, 'ref');
+  assert.match(ambiguous.message, /your portrait or in the wig photo/);
 });

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../lib/store.jsx';
 import { api } from '../lib/api.js';
 import { db, newId, today } from '../lib/db.js';
-import { resizeJpeg } from '../lib/image.js';
+import { loadImage, cropToJpeg } from '../lib/image.js';
 import { TopBar, Capture, Steps, ErrorBox, CompareSlider } from '../components.jsx';
 import { browPatternFor, FACE_SHAPE_TIPS } from '../../../core/brows.js';
 import { BROW_PRODUCTS } from '../../../core/catalog.js';
@@ -42,7 +42,10 @@ function Swatch({ label, hex, name, family }) {
 }
 
 /** A shop's product photo: picked from the phone (re-encoded here) or pasted as a link. */
-function ProductPhotoPicker({ label, hint, photo, onPhoto, url, onUrl, minShort = 0 }) {
+// Product photos are re-encoded as JPEG with the try-on's long-side cap
+// (Hairstyle VTO: 1024 px). The minimum is checked on the original first, so
+// a large but wide photo isn't rejected for the size it was shrunk to.
+function ProductPhotoPicker({ label, hint, linkHint, photo, onPhoto, url, onUrl, minShort = 0, maxLong = 1024 }) {
   const [problem, setProblem] = useState('');
   async function pick(e) {
     const f = e.target.files?.[0];
@@ -50,9 +53,16 @@ function ProductPhotoPicker({ label, hint, photo, onPhoto, url, onUrl, minShort 
     if (!f) return;
     setProblem('');
     try {
-      const j = await resizeJpeg(f, 1024); // Hairstyle VTO: JPEG, long side <= 1024
+      const img = await loadImage(f);
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      if (minShort && Math.min(w, h) < minShort) {
+        setProblem(`That photo is only ${w}×${h} px; at least ${minShort} px on each side is needed.`);
+        return;
+      }
+      const j = await cropToJpeg(img, { x: 0, y: 0, w, h }, { maxLong });
       if (minShort && Math.min(j.width, j.height) < minShort) {
-        setProblem(`That photo is only ${j.width}×${j.height} px; at least ${minShort} px on each side is needed.`);
+        setProblem(`That photo is ${w}×${h} px, too long and narrow to use. Crop it closer to the item.`);
         return;
       }
       onPhoto({ id: newId(), dataUrl: j.dataUrl });
@@ -76,7 +86,7 @@ function ProductPhotoPicker({ label, hint, photo, onPhoto, url, onUrl, minShort 
       <label className="field">
         <span>Or paste a link to the photo</span>
         <input className="input" type="url" inputMode="url" placeholder="https://…/photo.jpg" value={url} onChange={(e) => onUrl(e.target.value.trim())} />
-        <small>A direct link to a .jpg or .png. If it doesn’t work, save the picture and add it above.</small>
+        <small>{linkHint || 'A direct link to a .jpg or .png.'} If it doesn’t work, save the picture and add it above.</small>
       </label>
       {problem && <div className="banner">{problem}</div>}
     </div>
@@ -115,7 +125,7 @@ function PrintSection({ retake, setRetake }) {
   if (!print || retake) {
     return (
       <section className="sheet stack" aria-labelledby="print" id="print-section">
-        <h2 id="print">Your Hair & Brow Print</h2>
+        <h2 id="print" tabIndex={-1}>Your Hair & Brow Print</h2>
         <p>One clear selfie records your hair colour family, brow colour, brow shape and face shape, using YouCam’s Facial Color Tones and Face Attributes analysis. Show it to your wig specialist or brow artist, even after your hair has changed. For an exact colour match, also keep a lock of your hair.</p>
         <p className="fine">Hair down, forehead visible, face the light.</p>
         {retake && print && !print.sample && <p className="fine">A new print replaces your saved colours and shapes. To see brows on your face as it is now, keep this print and use “Take a photo of today” under Your brows, recreated.</p>}
@@ -139,7 +149,7 @@ function PrintSection({ retake, setRetake }) {
   return (
     <section className="sheet stack" aria-labelledby="print" id="print-section">
       <div className="section-title">
-        <h2 id="print">Your Hair & Brow Print</h2>
+        <h2 id="print" tabIndex={-1}>Your Hair & Brow Print</h2>
         <span className="fine">Saved {new Date(`${print.date}T12:00:00`).toLocaleDateString()}</span>
       </div>
       {(print.sample || print.demo) && <div className="banner info">{print.sample ? 'Sample print.' : 'Demo result: colours and shapes are placeholders until a YouCam key is configured.'}</div>}
@@ -243,6 +253,11 @@ function WigSection({ portraitState }) {
   useEffect(() => {
     api.hairTemplates().then((r) => setTemplates(r.templates || [])).catch((err) => setError(err));
   }, []);
+  // The portrait is shared with the head-covering section; a new one invalidates this try-on.
+  useEffect(() => {
+    setResult(null);
+    setSaved(false);
+  }, [portrait?.id]);
 
   const isRef = Boolean(refPhoto || refUrl);
   // YouCam honours hair_color only on templates with keep_users_color; a shop photo keeps its own colour.
@@ -277,7 +292,7 @@ function WigSection({ portraitState }) {
     <section className="sheet stack" aria-labelledby="wig">
       <h2 id="wig">Try wig styles on yourself</h2>
       <p>Try styles from home, at your own pace, before you visit a wig specialist or order online. Many shops won’t take a wig back once it has been worn.</p>
-      <PortraitPicker portrait={portrait} save={save} clear={() => clear().then(() => setResult(null))} why="Hairstyle try-on needs your head and shoulders." />
+      <PortraitPicker portrait={portrait} save={save} clear={clear} why="Hairstyle try-on needs your head and shoulders." />
       {portrait && result && (
         <div className="stack">
           <CompareSlider before={portrait.dataUrl} after={result.image} afterLabel={result.demo ? `${result.label} (demo)` : result.label} />
@@ -319,6 +334,7 @@ function WigSection({ portraitState }) {
               setRefUrl(u);
               if (u) setRefPhoto(null);
             }}
+            linkHint="A direct link to a .jpg photo, no more than 1024 px on the long side."
           />
           {colourKeepable ? (
             <label className="toggle">
@@ -352,6 +368,12 @@ function HeadwearSection({ portraitState }) {
   const [result, setResult] = useState(null);
   const [saved, setSaved] = useState(false);
   const tooSmall = portrait && Math.min(portrait.width || 0, portrait.height || 0) < 512;
+  // The portrait is shared with the wig section; a new one invalidates this try-on.
+  useEffect(() => {
+    setResult(null);
+    setSaved(false);
+    setError(null);
+  }, [portrait?.id]);
 
   async function tryOn() {
     setBusy(true);
@@ -405,6 +427,8 @@ function HeadwearSection({ portraitState }) {
               if (u) setRefPhoto(null);
             }}
             minShort={512}
+            maxLong={2048}
+            linkHint="A direct link to a .jpg or .png, at least 512 px on each side."
           />
           <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
             <legend style={{ fontWeight: 700, marginBottom: 8 }}>Style the preview for</legend>
@@ -420,7 +444,7 @@ function HeadwearSection({ portraitState }) {
             </div>
             <p className="fine" style={{ marginTop: 6 }}>YouCam needs this to style the outfit. Ahead never guesses it from your photo.</p>
           </fieldset>
-          <ErrorBox error={error} />
+          <ErrorBox error={error} onRetry={error?.fix === 'photo' ? clear : undefined} />
           <button className="btn primary block" onClick={tryOn} disabled={busy || tooSmall || !gender || !(refPhoto || refUrl)}>
             {busy ? 'Rendering your try-on…' : 'Try it on'}
           </button>
@@ -437,7 +461,10 @@ function BrowSection({ onNeedPrint }) {
   const [pattern, setPattern] = useState(suggested);
   const myBrows = print?.colors?.eyebrow_color || null;
   const pencils = useMemo(() => closest(BROW_PRODUCTS, myBrows), [myBrows]);
-  const [color, setColor] = useState(myBrows || '#3b2a20');
+  // Which chip is chosen, not its hex: a pencil can match the measured colour exactly.
+  const [colorChoice, setColorChoice] = useState(myBrows ? 'mine' : 'sb-dark-brown');
+  const chosenPencil = colorChoice === 'mine' ? null : BROW_PRODUCTS.find((p) => p.id === colorChoice);
+  const color = colorChoice === 'mine' ? myBrows : chosenPencil?.hex || '#3b2a20';
   const [intensity, setIntensity] = useState(55);
   const [todayPhoto, setTodayPhoto] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -451,7 +478,7 @@ function BrowSection({ onNeedPrint }) {
   }, []);
   useEffect(() => {
     setPattern(suggested);
-    if (myBrows) setColor(myBrows);
+    if (myBrows) setColorChoice('mine');
   }, [print?.date]);
 
   if (!print) {
@@ -492,7 +519,7 @@ function BrowSection({ onNeedPrint }) {
   }
 
   const name = patterns.find((p) => p.label === pattern)?.name || pattern;
-  const pencil = BROW_PRODUCTS.find((p) => p.hex === color);
+  const pencil = chosenPencil || BROW_PRODUCTS.find((p) => p.hex.toLowerCase() === String(myBrows || '').toLowerCase());
   return (
     <section className="sheet stack" aria-labelledby="brows">
       <h2 id="brows">Your brows, recreated</h2>
@@ -540,13 +567,13 @@ function BrowSection({ onNeedPrint }) {
             <legend style={{ fontWeight: 700, marginBottom: 8 }}>Colour</legend>
             <div className="chips">
               {myBrows && (
-                <button type="button" className="chip" aria-pressed={color === myBrows} onClick={() => setColor(myBrows)}>
+                <button type="button" className="chip" aria-pressed={colorChoice === 'mine'} onClick={() => setColorChoice('mine')}>
                   <span aria-hidden="true" className="chip-dot" style={{ background: myBrows }} />
                   My brows
                 </button>
               )}
               {pencils.map(({ item, dE }, i) => (
-                <button key={item.id} type="button" className="chip" aria-pressed={color === item.hex} onClick={() => setColor(item.hex)}>
+                <button key={item.id} type="button" className="chip" aria-pressed={colorChoice === item.id} onClick={() => setColorChoice(item.id)}>
                   <span aria-hidden="true" className="chip-dot" style={{ background: item.hex }} />
                   {item.name.replace('Brow Pencil, ', '')}
                   {myBrows && i === 0 ? ' (closest pencil)' : ''}
@@ -640,7 +667,10 @@ export default function Look() {
 
   function needPrint() {
     setRetakePrint(true);
-    requestAnimationFrame(() => document.getElementById('print-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    requestAnimationFrame(() => {
+      document.getElementById('print-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.getElementById('print')?.focus({ preventScroll: true });
+    });
   }
 
   return (

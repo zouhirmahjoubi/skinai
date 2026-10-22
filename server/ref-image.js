@@ -50,7 +50,7 @@ async function assertPublic(url, lookup) {
 /**
  * @returns {Promise<{ buf: Buffer, info: { type, ext, width, height } }>}
  */
-export async function fetchRefImage(url, { maxLongSide, minSide = 0, fetchImpl = fetch, lookup = dns.lookup } = {}) {
+export async function fetchRefImage(url, { maxLongSide, minSide = 0, types = null, fetchImpl = fetch, lookup = dns.lookup } = {}) {
   let target = url;
   for (let hop = 0; hop <= MAX_HOPS; hop++) {
     const u = await assertPublic(target, lookup);
@@ -60,17 +60,44 @@ export async function fetchRefImage(url, { maxLongSide, minSide = 0, fetchImpl =
     } catch {
       throw new RefImageError('error_download_image', 'We couldn’t open that link. Copy the image address itself (long-press or right-click the picture), or save the photo and add it from your phone.');
     }
+    const discard = () => res.body?.cancel().catch(() => {});
     const location = res.headers.get('location');
     if (res.status >= 300 && res.status < 400 && location) {
+      await discard();
       target = new URL(location, u).href;
       continue;
     }
-    if (!res.ok) throw new RefImageError('error_download_image', `That link answered with an error (${res.status}). Save the photo and add it from your phone instead.`);
-    if (Number(res.headers.get('content-length') || 0) > MAX_BYTES) throw new RefImageError('exceed_max_filesize', 'That photo is over 10 MB. Save it and add it from your phone instead.');
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length > MAX_BYTES) throw new RefImageError('exceed_max_filesize', 'That photo is over 10 MB. Save it and add it from your phone instead.');
+    if (!res.ok) {
+      await discard();
+      throw new RefImageError('error_download_image', `That link answered with an error (${res.status}). Save the photo and add it from your phone instead.`);
+    }
+    const tooBig = () => new RefImageError('exceed_max_filesize', 'That photo is over 10 MB. Save it and add it from your phone instead.');
+    if (Number(res.headers.get('content-length') || 0) > MAX_BYTES) {
+      await discard();
+      throw tooBig();
+    }
+    // Stream with a byte cap: a chunked response has no Content-Length to check up front.
+    const chunks = [];
+    let n = 0;
+    try {
+      for await (const c of res.body ?? []) {
+        n += c.length;
+        if (n > MAX_BYTES) {
+          await discard();
+          throw tooBig();
+        }
+        chunks.push(c);
+      }
+    } catch (e) {
+      if (e instanceof RefImageError) throw e;
+      throw new RefImageError('error_download_image', 'We couldn’t open that link. Copy the image address itself (long-press or right-click the picture), or save the photo and add it from your phone.');
+    }
+    const buf = Buffer.concat(chunks, n);
     const info = sniffImage(buf);
     if (!info) throw new RefImageError('error_decode_image', 'That link isn’t a JPG or PNG photo (many shops serve WebP). Save the picture and add it from your phone; Ahead will convert it.');
+    if (types && !types.includes(info.type)) {
+      throw new RefImageError('error_decode_image', 'This try-on needs a JPG photo, and that link is a PNG. Save the picture and add it from your phone; Ahead will convert it.');
+    }
     if (maxLongSide && Math.max(info.width, info.height) > maxLongSide) {
       throw new RefImageError('error_exceed_max_image_size', `That photo is ${info.width}×${info.height} px, and YouCam needs ${maxLongSide} px or less on the long side. Save it and add it from your phone; Ahead will shrink it for you.`);
     }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore, go } from '../lib/store.jsx';
 import { api, setAccessCode } from '../lib/api.js';
 import { TopBar } from '../components.jsx';
@@ -12,6 +12,7 @@ export default function Settings() {
   const [codeMsg, setCodeMsg] = useState('');
   const [msg, setMsg] = useState('');
   const [dataMsg, setDataMsg] = useState('');
+  const restoreInput = useRef(null);
   const [draft, setDraft] = useState(profile);
 
   useEffect(() => setDraft(profile), [profile]);
@@ -45,7 +46,7 @@ export default function Settings() {
       await importJournal(JSON.parse(await f.text()));
       go('/today');
     } catch {
-      setDataMsg('That file couldn’t be read as an Ahead journal.');
+      setDataMsg('That file couldn’t be read as an Ahead journal. Your current journal was left unchanged.');
     }
   }
 
@@ -117,10 +118,8 @@ export default function Settings() {
         <h2 id="data">Your data</h2>
         <p className="small">Everything is stored in this browser: {checkins.length} check-ins, {looks.length} saved looks{print ? ', your Hair & Brow Print' : ''}. Browsers can clear site data, so download a copy now and then.</p>
         <button className="btn secondary" onClick={exportData}>Download my journal</button>
-        <label className="btn secondary">
-          Restore from a file
-          <input type="file" accept="application/json,.json" hidden onChange={restore} />
-        </label>
+        <button className="btn secondary" onClick={() => restoreInput.current?.click()}>Restore from a file</button>
+        <input ref={restoreInput} type="file" accept="application/json,.json" hidden onChange={restore} />
         <button className="btn secondary" onClick={async () => { if (window.confirm('Replace your journal with the sample journey?')) { await loadSample(); go('/today'); } }}>Load sample journey</button>
         <button className="btn secondary" style={{ color: 'var(--call)' }} onClick={async () => { if (window.confirm('Delete everything Ahead has stored on this device?')) { await resetAll(); go('/today'); } }}>Delete everything</button>
         {dataMsg && <p className="fine" role="status">{dataMsg}</p>}

@@ -67,7 +67,9 @@ export function createLiveFeatures(client, { fetchImpl = fetch } = {}) {
           face_angle_strictness_level: 'medium',
         }),
       ]);
-      if (tone.status === 'rejected' && face.status === 'rejected') throw tone.reason;
+      if (tone.status === 'rejected' && face.status === 'rejected') {
+        throw tone.reason?.billed ? tone.reason : face.reason?.billed ? face.reason : tone.reason;
+      }
       return {
         colors: tone.status === 'fulfilled' ? tone.value?.color || null : null,
         face: face.status === 'fulfilled' ? normalizeFaceAttributes(face.value) : null,

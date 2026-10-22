@@ -27,8 +27,16 @@ const CSP = [
   "frame-ancestors 'none'",
 ].join('; ');
 
-// Errors YouCam reports about the person's own portrait even in reference mode.
-const SOURCE_ONLY = new Set(['error_no_shoulder', 'error_hair_too_short', 'error_bald_image', 'InvalidFileId']);
+// Errors YouCam documents as about the person's own portrait (the source
+// image) even when a wig or hat photo is sent as the reference: Hairstyle VTO
+// error_insufficient_landmarks / error_face_pose / error_large_face_angle and
+// Hat VTO error_no_face are all "in the source image".
+const PORTRAIT_ERRORS = ['error_no_shoulder', 'error_hair_too_short', 'error_bald_image', 'InvalidFileId'];
+const SOURCE_ONLY = {
+  wig: new Set([...PORTRAIT_ERRORS, 'error_insufficient_landmarks', 'error_face_pose', 'error_large_face_angle']),
+  'head-covering': new Set([...PORTRAIT_ERRORS, 'error_no_face']),
+};
+const isSourceError = (code, what) => SOURCE_ONLY[what]?.has(code) || /^error_(src|face_position)_/.test(code);
 
 export function createApp({
   features,
@@ -78,7 +86,8 @@ export function createApp({
   });
 
   // Budgets are kept in YouCam units, per IP and for the whole server, per UTC
-  // day. YouCam doesn't charge failed tasks, so 4xx answers are refunded.
+  // day. 4xx answers (validation errors, and tasks YouCam reports as failed,
+  // which it doesn't charge) are refunded, unless a task may still be billed.
   let day = '';
   let serverUnits = 0;
   const usage = new Map();
@@ -107,20 +116,26 @@ export function createApp({
     serverUnits += cost;
     const chargedDay = day;
     res.on('finish', () => {
-      if (res.statusCode < 400 || res.statusCode >= 500 || chargedDay !== day) return;
+      if (res.locals.billed || res.statusCode < 400 || res.statusCode >= 500 || chargedDay !== day) return;
       usage.set(key, Math.max(0, (usage.get(key) || 0) - cost));
       serverUnits = Math.max(0, serverUnits - cost);
     });
     next();
   };
 
-  const uploadLimit = (req, res, next) => {
+  // Counts photo uploads and server-side link fetches per IP per day.
+  const takeUploadSlot = (req) => {
     rollDay();
     const key = req.ip || 'unknown';
     const n = (uploads.get(key) || 0) + 1;
-    if (perIpDailyUploads && n > perIpDailyUploads) return limited(res, 'DailyLimit', 'Too many photos from this device today. Please come back tomorrow.');
-    if (!uploads.has(key) && uploads.size >= 20_000) return limited(res, 'DailyLimit', 'The demo is busy right now. Please try again later.');
+    if (perIpDailyUploads && n > perIpDailyUploads) return 'Too many photos from this device today. Please come back tomorrow.';
+    if (!uploads.has(key) && uploads.size >= 20_000) return 'The demo is busy right now. Please try again later.';
     uploads.set(key, n);
+    return null;
+  };
+  const uploadLimit = (req, res, next) => {
+    const refused = takeUploadSlot(req);
+    if (refused) return limited(res, 'DailyLimit', refused);
     next();
   };
 
@@ -148,9 +163,20 @@ export function createApp({
 
   // A wig or hat photo from a shop: either already uploaded (refFileId, the
   // browser re-encodes it) or a pasted link that we fetch and check first.
-  async function resolveRef({ refFileId, refUrl }, limits) {
+  async function resolveRef(req, { refFileId, refUrl }, limits) {
     if (typeof refFileId === 'string' && refFileId && refFileId.length <= 512) return refFileId;
     if (!refUrl) return null;
+    // Demo try-ons ignore the reference, so links are only shape-checked there, never fetched.
+    if (features.mode !== 'live') {
+      if (!isPublicHttpsUrl(refUrl)) throw badRequest('InvalidRefUrl', 'The photo link must be a public https:// address.', 'ref');
+      return 'demo_ref';
+    }
+    const refused = takeUploadSlot(req);
+    if (refused) {
+      const err = badRequest('DailyLimit', refused, 'service');
+      err.status = 429;
+      throw err;
+    }
     try {
       const { buf, info } = await refFetch(String(refUrl), limits);
       return (await features.upload(buf, info)).fileId;
@@ -163,10 +189,11 @@ export function createApp({
     try {
       return await fn();
     } catch (err) {
-      if (err instanceof YouCamError && !err.expose && !SOURCE_ONLY.has(err.code) && explain(err.code).fix === 'photo') {
-        const message = err.code === 'error_no_face' || err.code === 'error_insufficient_landmarks'
-          ? `YouCam couldn’t read the ${what} photo. Use one photo of the item${what === 'wig' ? ' on a real model facing forward, not on a mannequin or laid flat' : ' on its own, filling a good part of the picture'}.`
-          : `This ${what} photo didn’t work. Try a different, clearer product photo. If the styles above work on your portrait, your portrait is fine.`;
+      if (err instanceof YouCamError && !err.expose && !isSourceError(err.code, what) && explain(err.code).fix === 'photo') {
+        const message =
+          err.code === 'error_no_face'
+            ? 'YouCam couldn’t find a face in your portrait or in the wig photo. Check your face is clearly in view, and use a wig photo on a real model facing forward, not on a mannequin or laid flat.'
+            : `This ${what} photo didn’t work. Try a different, clearer product photo.${what === 'wig' ? ' If the styles above work on your portrait, your portrait is fine.' : ''}`;
         throw badRequest(err.code, message, 'ref');
       }
       throw err;
@@ -180,7 +207,7 @@ export function createApp({
     if (templateId) {
       return res.json(await features.hairTryOn({ fileId, templateId: String(templateId).slice(0, 128), keepColor: Boolean(keepColor) }));
     }
-    const ref = await resolveRef({ refFileId, refUrl }, { maxLongSide: 1024 });
+    const ref = await resolveRef(req, { refFileId, refUrl }, { maxLongSide: 1024, types: ['image/jpeg'] });
     res.json(await asRefErrors(() => features.hairTryOn({ fileId, refFileId: ref }), 'wig'));
   }));
 
@@ -189,7 +216,7 @@ export function createApp({
     requireFileId(fileId);
     if (gender !== 'female' && gender !== 'male') throw badRequest('MissingGender', 'Choose how the preview should be styled.', 'service');
     if (!refUrl && !refFileId) throw badRequest('MissingStyle', 'Add a photo of the hat, cap or headband.', 'ref');
-    const ref = await resolveRef({ refFileId, refUrl }, { minSide: 512 });
+    const ref = await resolveRef(req, { refFileId, refUrl }, { minSide: 512, maxLongSide: 4096 });
     res.json(await asRefErrors(() => features.hatTryOn({ fileId, refFileId: ref, gender }), 'head-covering'));
   }));
 
@@ -205,6 +232,7 @@ export function createApp({
 
   // eslint-disable-next-line no-unused-vars
   api.use((err, req, res, next) => {
+    if (err?.billed) res.locals.billed = true;
     if (err?.type === 'entity.too.large') {
       return res.status(413).json({ error: { code: 'exceed_max_filesize', ...explain('exceed_max_filesize') } });
     }

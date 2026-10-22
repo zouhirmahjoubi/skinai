@@ -100,7 +100,10 @@ export function createYouCamClient({ apiKey, baseUrl = BASE_URL, fetchImpl = fet
         data = await call(`/s2s/${v}/task/${feature}/${encodeURIComponent(taskId)}`);
         strikes = 0;
       } catch (err) {
-        if (!isTransient(err) || ++strikes > 4) throw err;
+        if (!isTransient(err) || ++strikes > 4) {
+          err.billed = true; // the task started and may still be charged
+          throw err;
+        }
         await sleep(1000 * strikes);
         continue;
       }
@@ -115,7 +118,9 @@ export function createYouCamClient({ apiKey, baseUrl = BASE_URL, fetchImpl = fet
       await sleep(hinted > 0 ? Math.min(Math.max(hinted * 1000, 1000), 10_000) : delay);
       delay = Math.min(delay * 1.4, 6000);
     }
-    throw new YouCamError('Timed out waiting for YouCam', 'Timeout', 504);
+    const timeout = new YouCamError('Timed out waiting for YouCam', 'Timeout', 504);
+    timeout.billed = true;
+    throw timeout;
   }
 
   async function runTask(feature, body) {

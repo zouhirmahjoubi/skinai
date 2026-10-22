@@ -43,6 +43,37 @@ export const db = {
   async clearAll() {
     for (const store of ['kv', 'checkins', 'looks']) await tx(store, 'readwrite', (s) => s.clear());
   },
+  /** Replaces the journal in one transaction, so a failed restore changes nothing. Saved try-on photos are kept. */
+  async replaceJournal({ profile, print, list, checkins, looks }) {
+    const d = await open();
+    return new Promise((resolve, reject) => {
+      const t = d.transaction(['kv', 'checkins', 'looks'], 'readwrite');
+      t.oncomplete = () => resolve();
+      t.onerror = () => reject(t.error);
+      t.onabort = () => reject(t.error || new Error('Restore aborted'));
+      try {
+        const kv = t.objectStore('kv');
+        kv.put(profile, 'profile');
+        if (print) kv.put(print, 'print');
+        else kv.delete('print');
+        kv.put(list, 'list');
+        const cs = t.objectStore('checkins');
+        cs.clear();
+        for (const c of checkins) cs.put(c);
+        const ls = t.objectStore('looks');
+        ls.clear();
+        for (const l of looks) ls.put(l);
+      } catch (e) {
+        // A synchronous DataError doesn't abort the transaction by itself.
+        try {
+          t.abort();
+        } catch {
+          /* already finished */
+        }
+        reject(e);
+      }
+    });
+  },
 };
 
 export const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;

@@ -25,7 +25,9 @@ export const TREATMENTS = {
         short: 'Hair may shed',
         area: 'hair',
         body: 'With many chemotherapy drugs, hair starts to shed two to four weeks after the first dose, and brows and lashes can thin too. Not every drug does this, so ask your team what to expect from yours.',
-        careTeam: 'If you would like to try to keep some of your hair, ask your team before your first infusion whether scalp cooling (a cold cap) suits your drugs and cancer type. It works best when used from the first infusion, works better with some drugs than others, and is usually not offered for blood cancers such as leukaemia or lymphoma.',
+        // Shown on Today before treatment starts; once it has, the time-neutral careTeam text.
+        careTeamBefore: 'If you would like to try to keep some of your hair, ask your team before your first infusion whether scalp cooling (a cold cap) suits your drugs and cancer type. It works best when used from the first infusion, works better with some drugs than others, and is usually not offered for blood cancers such as leukaemia or lymphoma.',
+        careTeam: 'If you are using scalp cooling (a cold cap), keep using it at every infusion. If you are not and would still like to try it, ask your team whether it is worth starting with your drugs.',
         action: { label: 'Save your Hair & Brow Print', to: 'look' },
       },
       {
@@ -92,7 +94,8 @@ export const TREATMENTS = {
         concern: 'acne',
         alsoConcerns: ['redness'],
         body: 'An acne-like rash on the face, scalp or chest is one of the most common side effects of EGFR inhibitors, usually in the first weeks. It looks like acne but it is not acne, and over-the-counter acne products such as benzoyl peroxide or salicylic acid can make it worse.',
-        careTeam: 'Tell your care team early: they often treat this rash with specific prescriptions, and treating it early can help you stay on your therapy. Before your first dose, ask about preventive skin care from day one. Guidelines often recommend a moisturiser, sunscreen, a mild steroid cream and an antibiotic tablet such as doxycycline, and in a trial this more than halved moderate-to-severe rash.',
+        careTeam: 'Tell your care team early: they often treat this rash with specific prescriptions, and treating it early can help you stay on your therapy.',
+        careTeamBefore: 'Before your first dose, ask about preventive skin care from day one. Guidelines often recommend a moisturiser, sunscreen, a mild steroid cream and an antibiotic tablet such as doxycycline, and in a trial this more than halved moderate-to-severe rash. If a rash still appears, tell your team early.',
         avoid: ['benzoyl_peroxide', 'bha', 'aha', 'retinoid', 'scrub', 'drying_alcohol'],
         needs: ['humectant', 'mineral_spf', 'soothing'],
         callIf: 'worse',

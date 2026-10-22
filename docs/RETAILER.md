@@ -11,7 +11,7 @@ Ahead's shopping features run on plain product data. To use your own catalog ins
 
 ## Why try-before-buy matters here
 
-Wigs and many head coverings can't be returned once worn, for hygiene reasons, and people often have to buy them in the two to four weeks before chemotherapy hair loss starts. Running YouCam Hairstyle and Hat try-on against the shop's own product photo lets someone narrow the choice at home before a fitting or an order.
+Wigs and many head coverings can't be returned once worn, for hygiene reasons, and people often have to buy them in the two to four weeks before chemotherapy hair loss starts. Running YouCam Hairstyle and Hat try-on on the shop's product photo, which the shopper adds from their phone or pastes as a link, lets someone narrow the choice at home before a fitting or an order. Product photos are not read from the feed yet; an optional `photo` URL per wig or hat would let a "Try on" button pass it straight to the try-on.
 
 ## Where products appear
 

@@ -25,7 +25,7 @@ Skin, hair and brow changes are among the most visible side effects of cancer tr
 - **Gentle shelf and My list:** each product's INCI list is parsed and ranked against the person's treatment and latest check-in, with reasons and the offending ingredients highlighted. Saved products go on the care-team summary and are re-checked as the skin changes.
 - **Fitting sheet, insurance letter and care-team summary:** printable pages for the wig specialist, the insurer ("cranial prosthesis", HCPCS A9282) and the oncology team.
 
-**For retailers:** measured brow colour picks the closest brow pencil. Every try-on runs against the shop's own product photo, and any shop's feed (id, price, INCI list, shade hex, product photo) plugs in. See docs/RETAILER.md.
+**For retailers:** measured brow colour picks the closest brow pencil. Wig and hat try-ons run on any shop's product photo the shopper adds (picked from the phone or pasted as a link), and a shop's feed plugs into the shelf, My list and the brow-pencil match with id, name, price, INCI list and, for shade products, a hex colour. See docs/RETAILER.md.
 
 ## How we built it
 

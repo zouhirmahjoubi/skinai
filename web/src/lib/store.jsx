@@ -114,19 +114,29 @@ export function StoreProvider({ children }) {
   }, []);
 
   /** Restores a journal downloaded from Settings. */
+  // Checks the whole file first and writes it in one transaction, so a bad
+  // file or a full disk leaves the current journal (and the screen) as it was.
   const importJournal = useCallback(async (data) => {
-    if (!data || !data.profile || !Array.isArray(data.checkins)) throw new Error('Not an Ahead journal file');
-    await db.clearAll();
-    await db.set('profile', data.profile);
-    if (data.print) await db.set('print', data.print);
-    if (Array.isArray(data.list)) await db.set('list', data.list);
-    for (const c of data.checkins) await db.put('checkins', c);
-    for (const l of data.looks || []) await db.put('looks', l);
+    const looks = data?.looks ?? [];
+    const keyed = (x) => x && typeof x === 'object' && (typeof x.id === 'string' || typeof x.id === 'number');
+    const valid =
+      data &&
+      data.profile &&
+      typeof data.profile === 'object' &&
+      Array.isArray(data.profile.treatments) &&
+      Array.isArray(data.checkins) &&
+      data.checkins.every(keyed) &&
+      Array.isArray(looks) &&
+      looks.every(keyed) &&
+      (data.list == null || (Array.isArray(data.list) && data.list.every((id) => typeof id === 'string')));
+    if (!valid) throw new Error('Not an Ahead journal file');
+    const list = data.list || [];
+    await db.replaceJournal({ profile: data.profile, print: data.print || null, list, checkins: data.checkins, looks });
     setProfile(data.profile);
     setPrint(data.print || null);
     setCheckins([...data.checkins].sort(byDate));
-    setLooks([...(data.looks || [])].sort(newestFirst));
-    setList(Array.isArray(data.list) ? data.list : []);
+    setLooks([...looks].sort(newestFirst));
+    setList(list);
     requestPersistence();
   }, []);
 

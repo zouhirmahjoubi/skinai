@@ -20,9 +20,11 @@ export function watchNotes(profile, comparison, now = new Date(), { skinHex } = 
   const notes = [];
   const treatments = (profile?.treatments || []).filter((t) => TREATMENTS[t]);
   const { week } = treatmentPhase(profile?.startDate, now);
-  // Redness is harder for any camera to see on brown and black skin.
+  // Redness is harder for any camera to see on brown and black skin, so the
+  // caveat goes to anyone whose expected side effects are read from redness.
   const tone = ita(skinHex);
-  const deeperTone = tone !== null && tone < 10 && treatments.some((t) => t === 'radiation' || t === 'immuno');
+  const readsRedness = (t) => TREATMENTS[t].expect.some((e) => [].concat(e.concern || [], e.alsoConcerns || []).includes('redness'));
+  const deeperTone = tone !== null && tone < 10 && treatments.some(readsRedness);
 
   if (!comparison.baseline) {
     notes.push({
@@ -57,7 +59,13 @@ export function watchNotes(profile, comparison, now = new Date(), { skinHex } = 
         const concerns = [].concat(e.concern || [], e.alsoConcerns || []);
         if (!concerns.includes(row.key)) continue;
         if (week !== null && week < e.weeks[0] - 1) continue;
-        const escalate = Boolean(e.callIf) && (e.callIf === 'worse' || row.vsBase.status === 'much-worse');
+        // A 'much-worse' trigger fires on the expectation's own concern only;
+        // its alsoConcerns explain a change but don't escalate it. Rash
+        // triggers (callIf 'worse') escalate on any of their concerns. On
+        // deeper skin a radiation reaction shows as darkening, so age_spot
+        // counts as its own concern there.
+        const own = row.key === e.concern || e.callIf === 'worse' || (deeperTone && row.key === 'age_spot');
+        const escalate = Boolean(e.callIf) && own && (e.callIf === 'worse' || row.vsBase.status === 'much-worse');
         matches.push({ key, e, escalate });
       }
     }
@@ -131,9 +139,9 @@ export function watchNotes(profile, comparison, now = new Date(), { skinHex } = 
     // The camera only sees the face. Name the places these treatments affect
     // that a face photo cannot show, and symptoms no photo can show.
     const blind = [];
-    if (treatments.includes('egfr')) blind.push('your scalp, chest or back');
-    if (treatments.includes('radiation')) blind.push('your treatment area');
-    const where = treatments.includes('immuno') || !blind.length ? 'anywhere on your body' : blind.join(' or ');
+    if (treatments.includes('egfr')) blind.push('on your scalp, chest or back');
+    if (treatments.includes('radiation')) blind.push('in your treatment area');
+    const where = treatments.includes('immuno') || !blind.length ? 'anywhere on your body' : blind.join(', or ');
     notes.push({
       id: 'steady',
       level: 'good',
@@ -141,7 +149,7 @@ export function watchNotes(profile, comparison, now = new Date(), { skinHex } = 
       body: improved.length
         ? `${improved.map((r) => CONCERN_BY_KEY[r.key].label).join(', ')} ${improved.length > 1 ? 'are' : 'is'} up since your first photo. Keep your routine gentle and keep checking in weekly.`
         : 'No change on your face bigger than normal photo-to-photo variation. Keep your routine gentle and keep checking in weekly.',
-      careTeam: `Still tell your care team about any new rash, itch, soreness or skin change on ${where}, whatever these scores say. Ahead only sees the skin on your face in this photo, and it can’t pick up itch or pain.`,
+      careTeam: `Still tell your care team about any new rash, itch, soreness or skin change ${where}, whatever these scores say. Ahead only sees the skin on your face in this photo, and it can’t pick up itch or pain.`,
       avoid: [],
       needs: [],
     });
@@ -175,13 +183,20 @@ export function questionsFor(notes, { treatments = [], phase } = {}) {
   if (treatments.includes('chemo') && phase?.phase === 'before') {
     q.push('Could scalp cooling (a cold cap) work with my chemotherapy, and do I need to arrange it before my first infusion?');
   }
+  const immunoQ = 'I have a new rash, itch or skin change. Is this an immune-related side effect I should treat?';
+  const sunQ = 'I am noticing darker patches. Is my treatment making me sun-sensitive?';
   for (const n of notes) {
+    // On immunotherapy any unexplained change is worth raising as a possible
+    // immune-related effect, alongside the concern-specific question.
+    if ((n.id || '').startsWith('unexplained') && treatments.includes('immuno')) q.push(immunoQ);
     if (n.expectation === 'egfr_rash') q.push('I have an acne-like rash. Should I start a treatment for it, and which moisturiser and sunscreen do you recommend?');
     else if (n.treatment === 'radiation') q.push('The skin in my treated area is changing (redder, darker, dry or itchy). What should I put on it, and is it fine to apply on treatment days?');
-    else if (n.treatment === 'immuno' || ((n.id || '').startsWith('unexplained') && treatments.includes('immuno'))) q.push('I have a new rash, itch or skin change. Is this an immune-related side effect I should treat?');
+    else if (n.treatment === 'immuno') q.push(immunoQ);
     else if (n.expectation === 'chemo_dull') q.push('My skin looks paler or duller than before. Could my blood count or liver tests explain it?');
     else if (n.concern === 'moisture') q.push('My skin is getting drier. Is there a cream you recommend during treatment?');
-    else if (n.concern === 'age_spot') q.push('I am noticing darker patches. Is my treatment making me sun-sensitive?');
+    else if (n.concern === 'age_spot') q.push(sunQ);
+    // Chemotherapy can cause sun sensitivity even when another treatment's note leads.
+    if (n.concerns?.includes('age_spot') && n.treatment !== 'chemo' && treatments.includes('chemo')) q.push(sunQ);
   }
   return [...new Set(q)];
 }

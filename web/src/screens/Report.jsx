@@ -35,7 +35,7 @@ export default function Report() {
       </header>
 
       {!current ? (
-        <div className="sheet empty">No check-ins yet. Take a check-in and this page fills in.</div>
+        <div className="sheet empty">No check-ins yet. Take a check-in and your scores and notes fill in here.</div>
       ) : (
         <>
           <section className="sheet" aria-labelledby="t">
@@ -73,25 +73,25 @@ export default function Report() {
               ))}
             </section>
           )}
-
-          {questions.length > 0 && (
-            <section className="sheet" aria-labelledby="q">
-              <h2 id="q" style={{ marginBottom: 12 }}>My questions</h2>
-              <ol className="list-plain">
-                {questions.map((q) => (
-                  <li key={q}>{q}</li>
-                ))}
-              </ol>
-            </section>
-          )}
-
-          {current.photo && (
-            <section className="sheet" aria-labelledby="ph">
-              <h2 id="ph" style={{ marginBottom: 12 }}>Latest photo ({fmt(current.date)})</h2>
-              <img src={current.photo} alt="Latest check-in" style={{ maxWidth: 240, borderRadius: 12 }} />
-            </section>
-          )}
         </>
+      )}
+
+      {questions.length > 0 && (
+        <section className="sheet" aria-labelledby="q">
+          <h2 id="q" style={{ marginBottom: 12 }}>My questions</h2>
+          <ol className="list-plain">
+            {questions.map((q) => (
+              <li key={q}>{q}</li>
+            ))}
+          </ol>
+        </section>
+      )}
+
+      {current?.photo && (
+        <section className="sheet" aria-labelledby="ph">
+          <h2 id="ph" style={{ marginBottom: 12 }}>Latest photo ({fmt(current.date)})</h2>
+          <img src={current.photo} alt="Latest check-in" style={{ maxWidth: 240, borderRadius: 12 }} />
+        </section>
       )}
 
       {(planned.length > 0 || pencils.length > 0) && (

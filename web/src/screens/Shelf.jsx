@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useStore, useInsights } from '../lib/store.jsx';
 import { TopBar } from '../components.jsx';
-import { CATALOG, TYPE_LABEL } from '../../../core/catalog.js';
+import { CATALOG, TYPE_LABEL, PRODUCT_BY_ID } from '../../../core/catalog.js';
 import { CLASSES, shelfContext, rankShelf, parseInci } from '../../../core/ingredients.js';
 
 function Inci({ product, reasons }) {
@@ -73,7 +73,10 @@ export default function Shelf() {
   const avoid = ranked.filter((r) => r.verdict === 'avoid');
   const driving = notes.filter((n) => n.avoid?.length || n.level === 'call');
   const saved = ranked.filter((r) => list.includes(r.product.id));
-  const total = saved.reduce((sum, r) => sum + r.product.price, 0);
+  // Brow pencils share the list but have no ingredient verdict.
+  const pencils = list.map((id) => PRODUCT_BY_ID[id]).filter((p) => p && p.hex);
+  const count = saved.length + pencils.length;
+  const total = saved.reduce((sum, r) => sum + r.product.price, 0) + pencils.reduce((sum, p) => sum + p.price, 0);
   const flagged = saved.filter((r) => r.verdict !== 'good');
   const item = (r) => <Product key={r.product.id} item={r} saved={list.includes(r.product.id)} onToggle={toggleList} />;
 
@@ -85,17 +88,30 @@ export default function Shelf() {
         <p className="muted">Every product’s ingredient list is checked against your treatments and your latest check-in. The shelf changes as your skin does.</p>
       </div>
 
-      {saved.length > 0 && (
+      {count > 0 && (
         <section className="sheet stack" aria-labelledby="mylist">
           <h2 id="mylist">My list</h2>
           <p className="small">
-            {saved.length} {saved.length === 1 ? 'product' : 'products'}, ${total} in total. Your list goes on your care-team summary so you can check before starting anything new.
+            {count} {count === 1 ? 'product' : 'products'}, ${total} in total. Your list goes on your care-team summary so you can check before starting anything new.
           </p>
           {flagged.length > 0 && (
             <p className="small">
               <strong>Check again: </strong>
               {flagged.map((r) => `${r.product.name} is now under “${r.verdict === 'avoid' ? 'Not right now' : 'Use with care'}”`).join('; ')}.
             </p>
+          )}
+          {pencils.length > 0 && (
+            <ul className="list-plain small" style={{ paddingLeft: 0, listStyle: 'none' }}>
+              {pencils.map((p) => (
+                <li key={p.id} className="row spread">
+                  <span>
+                    <span className="dot" style={{ background: p.hex }} aria-hidden="true" />
+                    {p.name} (${p.price})
+                  </span>
+                  <button type="button" className="btn small secondary" aria-label={`Remove ${p.name} from my list`} onClick={() => toggleList(p.id)}>Remove</button>
+                </li>
+              ))}
+            </ul>
           )}
           <a className="btn small secondary" href="#/report">Open care-team summary</a>
         </section>

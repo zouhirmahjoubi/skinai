@@ -132,7 +132,9 @@ export default function Today() {
                 {openExp === e.id && (
                   <div className="stack" style={{ marginTop: 10 }}>
                     <p>{e.body}</p>
-                    {e.careTeam && <p className="small"><strong>Care team: </strong>{e.careTeam}</p>}
+                    {(phase.phase === 'before' ? e.careTeamBefore || e.careTeam : e.careTeam) && (
+                      <p className="small"><strong>Care team: </strong>{phase.phase === 'before' ? e.careTeamBefore || e.careTeam : e.careTeam}</p>
+                    )}
                     {e.action && <a className="btn secondary small" href={`#/${e.action.to}`}>{e.action.label}</a>}
                   </div>
                 )}

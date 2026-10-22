@@ -45,12 +45,6 @@ export async function cropToJpeg(source, rect, { maxLong = 2560, mirror = false,
   return { blob, width: c.width, height: c.height, dataUrl: await blobToDataUrl(blob) };
 }
 
-/** Re-encodes an existing photo with a smaller long side (e.g. 1024px for hairstyle try-on). */
-export async function resizeJpeg(src, maxLong) {
-  const img = await loadImage(src);
-  return cropToJpeg(img, { x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight }, { maxLong });
-}
-
 /**
  * Mean luminance (0-1) inside the central face oval. Compared week to week,
  * a big jump means the light changed, which can move scores on its own.

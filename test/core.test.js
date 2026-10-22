@@ -221,7 +221,7 @@ test('steady note is scoped to the face and still points to the care team', () =
   assert.match(n.title, /face/);
 });
 
-test('deeper skin tones get a redness caveat on radiation or immunotherapy', () => {
+test('deeper skin tones get a redness caveat when a redness side effect is expected', () => {
   const cmp = { baseline: true, lighting: { comparable: true, diff: 0 }, rows: [{ key: 'redness', vsBase: { status: 'steady', delta: 1 } }] };
   const ids = (hex) => watchNotes({ treatments: ['radiation'], startDate: '2026-09-01' }, cmp, new Date('2026-10-02'), { skinHex: hex }).map((n) => n.id);
   assert.ok(ita('#6b4a3a') < 10 && ita('#e8c4a8') > 10);
@@ -254,4 +254,57 @@ test('CIEDE2000 matches the Sharma et al. reference pair and ranks brow pencils'
 test('brow effects tolerate bad input', () => {
   assert.equal(browEffects({ color: 123456 })[1].palettes[0].color, '#5a4636');
   assert.equal(browEffects({ pattern: '../../etc' })[1].pattern.name, 'Original2');
+});
+
+test('before-treatment advice stays off notes once treatment has started', () => {
+  const now = new Date('2026-10-22T10:00:00');
+  const { profile, checkins } = sampleJourney(now);
+  const last = checkins[checkins.length - 1];
+  const rash = watchNotes(profile, compareCheckin(checkins, last), now).find((n) => n.expectation === 'egfr_rash');
+  assert.equal(rash.level, 'call');
+  assert.doesNotMatch(rash.careTeam, /first dose/i);
+  const hair = expectationsFor(['chemo'], '2026-09-24', now).find((e) => e.id === 'chemo_hair');
+  assert.doesNotMatch(hair.careTeam, /before your first infusion/);
+  assert.match(hair.careTeamBefore, /before your first infusion/);
+});
+
+test('immunotherapy adds the immune question alongside concern-specific ones', () => {
+  const notes = [
+    { id: 'unexplained:moisture', concern: 'moisture', concerns: ['moisture'] },
+    { id: 'unexplained:age_spot', concern: 'age_spot', concerns: ['age_spot'] },
+  ];
+  const q = questionsFor(notes, { treatments: ['immuno'] });
+  assert.ok(q.some((x) => /immune-related/.test(x)));
+  assert.ok(q.some((x) => /drier/.test(x)));
+  assert.ok(q.some((x) => /darker patches/.test(x)));
+});
+
+test('steady note names where the camera cannot see, with the right preposition', () => {
+  const cmp = { baseline: true, lighting: { comparable: true, diff: 0 }, rows: [{ key: 'redness', vsBase: { status: 'steady', delta: 1 } }] };
+  const careTeam = (treatments) => watchNotes({ treatments, startDate: '2026-01-01' }, cmp, new Date('2026-02-10'))[0].careTeam;
+  assert.match(careTeam(['chemo']), /skin change anywhere on your body/);
+  assert.match(careTeam(['egfr', 'radiation']), /skin change on your scalp, chest or back, or in your treatment area/);
+  assert.doesNotMatch(careTeam(['hormone']), /on anywhere/);
+});
+
+test('a big even-tone drop on chemo + radiation is not escalated by the radiation note', () => {
+  const profile = { treatments: ['chemo', 'radiation'], startDate: '2026-09-01' };
+  const checkins = [
+    { id: 'a', date: '2026-09-01', tier: 'hd', scores: { age_spot: { raw: 85 }, redness: { raw: 80 } } },
+    { id: 'b', date: '2026-10-01', tier: 'hd', scores: { age_spot: { raw: 72 }, redness: { raw: 80 } } },
+  ];
+  const notes = watchNotes(profile, compareCheckin(checkins, checkins[1]), new Date('2026-10-02'));
+  assert.equal(notes[0].expectation, 'chemo_sun');
+  assert.equal(notes[0].level, 'watch');
+  assert.ok(questionsFor(notes, { treatments: profile.treatments }).some((q) => /sun-sensitive/.test(q)));
+  const radFirst = watchNotes({ ...profile, treatments: ['radiation', 'chemo'] }, compareCheckin(checkins, checkins[1]), new Date('2026-10-02'));
+  assert.ok(questionsFor(radFirst, { treatments: ['radiation', 'chemo'] }).some((q) => /sun-sensitive/.test(q)));
+});
+
+test('the deeper-skin redness caveat covers every treatment read from redness', () => {
+  const cmp = { baseline: true, lighting: { comparable: true, diff: 0 }, rows: [{ key: 'redness', vsBase: { status: 'steady', delta: 1 } }] };
+  const ids = (treatments) => watchNotes({ treatments, startDate: '2026-09-01' }, cmp, new Date('2026-10-02'), { skinHex: '#6b4a3a' }).map((n) => n.id);
+  assert.ok(ids(['egfr']).includes('tone'));
+  assert.ok(ids(['immuno']).includes('tone'));
+  assert.ok(!ids(['hormone']).includes('tone'));
 });
