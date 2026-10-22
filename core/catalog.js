@@ -78,3 +78,19 @@ export const CATALOG = [
 ];
 
 export const TYPE_LABEL = { cleanse: 'Cleanse', moisturise: 'Moisturise', soothe: 'Soothe', protect: 'Protect', treat: 'Treat' };
+
+// Fictional brow pencils. Shades are matched to the brow colour measured by
+// YouCam's Facial Color Tones Analyzer (CIEDE2000, core/color.js).
+export const BROW_PRODUCTS = [
+  { id: 'sb-soft-black', line: 'Shelfside Brow', name: 'Brow Pencil, Soft Black', price: 9, hex: '#2b2522' },
+  { id: 'sb-espresso', line: 'Shelfside Brow', name: 'Brow Pencil, Espresso', price: 9, hex: '#33241d' },
+  { id: 'sb-dark-brown', line: 'Shelfside Brow', name: 'Brow Pencil, Dark Brown', price: 9, hex: '#3b2a20' },
+  { id: 'sb-medium-brown', line: 'Shelfside Brow', name: 'Brow Pencil, Medium Brown', price: 9, hex: '#5a4030' },
+  { id: 'sb-taupe', line: 'Shelfside Brow', name: 'Brow Pencil, Taupe', price: 9, hex: '#7a6656' },
+  { id: 'sb-dark-blonde', line: 'Shelfside Brow', name: 'Brow Pencil, Dark Blonde', price: 9, hex: '#9a7d5c' },
+  { id: 'sb-auburn', line: 'Shelfside Brow', name: 'Brow Pencil, Auburn', price: 9, hex: '#6b3a2a' },
+  { id: 'sb-soft-grey', line: 'Shelfside Brow', name: 'Brow Pencil, Soft Grey', price: 9, hex: '#8a8580' },
+];
+
+/** Every product a person can put on their list, by id. */
+export const PRODUCT_BY_ID = Object.fromEntries([...CATALOG, ...BROW_PRODUCTS].map((p) => [p.id, p]));

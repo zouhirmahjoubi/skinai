@@ -27,7 +27,7 @@ function Inci({ product, reasons }) {
   );
 }
 
-function Product({ item }) {
+function Product({ item, saved, onToggle }) {
   const { product, reasons, verdict } = item;
   const shown = verdict === 'good' ? reasons.filter((r) => r.type === 'good') : reasons.filter((r) => r.type !== 'good');
   return (
@@ -50,13 +50,21 @@ function Product({ item }) {
           {verdict === 'good' && shown.length === 0 && <li>Nothing that commonly irritates</li>}
         </ul>
         <Inci product={product} reasons={reasons} />
+        {(verdict !== 'avoid' || saved) && (
+          <div className="row spread" style={{ marginTop: 10 }}>
+            {saved ? <span className="fine">On your list</span> : <span />}
+            <button type="button" className="btn small secondary" aria-pressed={saved} onClick={() => onToggle(product.id)}>
+              {saved ? 'Remove from my list' : 'Save to my list'}
+            </button>
+          </div>
+        )}
       </div>
     </article>
   );
 }
 
 export default function Shelf() {
-  const { profile, server } = useStore();
+  const { profile, server, list = [], toggleList } = useStore();
   const { notes } = useInsights();
   const ctx = useMemo(() => shelfContext(profile, notes), [profile, notes]);
   const ranked = useMemo(() => rankShelf(CATALOG, ctx), [ctx]);
@@ -64,6 +72,10 @@ export default function Shelf() {
   const caution = ranked.filter((r) => r.verdict === 'caution');
   const avoid = ranked.filter((r) => r.verdict === 'avoid');
   const driving = notes.filter((n) => n.avoid?.length || n.level === 'call');
+  const saved = ranked.filter((r) => list.includes(r.product.id));
+  const total = saved.reduce((sum, r) => sum + r.product.price, 0);
+  const flagged = saved.filter((r) => r.verdict !== 'good');
+  const item = (r) => <Product key={r.product.id} item={r} saved={list.includes(r.product.id)} onToggle={toggleList} />;
 
   return (
     <div className="stack-lg">
@@ -72,6 +84,22 @@ export default function Shelf() {
         <h1>Your gentle shelf</h1>
         <p className="muted">Every product’s ingredient list is checked against your treatments and your latest check-in. The shelf changes as your skin does.</p>
       </div>
+
+      {saved.length > 0 && (
+        <section className="sheet stack" aria-labelledby="mylist">
+          <h2 id="mylist">My list</h2>
+          <p className="small">
+            {saved.length} {saved.length === 1 ? 'product' : 'products'}, ${total} in total. Your list goes on your care-team summary so you can check before starting anything new.
+          </p>
+          {flagged.length > 0 && (
+            <p className="small">
+              <strong>Check again: </strong>
+              {flagged.map((r) => `${r.product.name} is now under “${r.verdict === 'avoid' ? 'Not right now' : 'Use with care'}”`).join('; ')}.
+            </p>
+          )}
+          <a className="btn small secondary" href="#/report">Open care-team summary</a>
+        </section>
+      )}
 
       <section className="sheet stack" aria-labelledby="rules">
         <h2 id="rules">This week’s rules</h2>
@@ -108,7 +136,7 @@ export default function Shelf() {
           <h2 id="good">Good for you now</h2>
           <span className="fine">{good.length} products</span>
         </div>
-        {good.map((item) => <Product key={item.product.id} item={item} />)}
+        {good.map(item)}
       </section>
 
       {caution.length > 0 && (
@@ -117,7 +145,7 @@ export default function Shelf() {
             <h2 id="caution">Use with care</h2>
             <span className="fine">{caution.length}</span>
           </div>
-          {caution.map((item) => <Product key={item.product.id} item={item} />)}
+          {caution.map(item)}
         </section>
       )}
 
@@ -127,12 +155,12 @@ export default function Shelf() {
             <h2 style={{ display: 'inline' }}>Not right now</h2> <span className="fine">({avoid.length}, with reasons)</span>
           </summary>
           <div style={{ marginTop: 12 }}>
-            {avoid.map((item) => <Product key={item.product.id} item={item} />)}
+            {avoid.map(item)}
           </div>
         </details>
       )}
 
-      <p className="fine">Products are from Shelfside, a fictional demo store. A retailer can plug in its own catalog: Ahead only needs each product’s ingredient list.</p>
+      <p className="fine">Products are from Shelfside, a fictional demo store. A retailer can plug in its own catalog and cart: Ahead only needs each product’s ingredient list.</p>
     </div>
   );
 }

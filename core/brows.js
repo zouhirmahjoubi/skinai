@@ -26,23 +26,21 @@ export function browPatternFor(shape) {
   return SHAPE_TO_PATTERN[String(shape || '').toLowerCase()] || 'Original2';
 }
 
-// Face Attributes thickness -> makeup-vto pattern.thickness (-100..100).
-export function browThicknessFor(thickness) {
-  const t = String(thickness || '').toLowerCase();
-  if (t === 'dense') return 30;
-  if (t === 'sparse') return -25;
-  return 0;
-}
-
-/** Builds the makeup-vto effects for a brow preview. Smoothing is forced to 0 so the face is not airbrushed. */
+/**
+ * Builds the makeup-vto effects for a brow preview. Smoothing is forced to 0 so
+ * the face is not airbrushed. pattern.thickness is an offset from the brow
+ * detected in the photo being rendered (-100..100), so 0 keeps the person's own.
+ */
 export function browEffects({ pattern = 'Original2', color = '#5a4636', intensity = 60, thickness = 0, curvature = 0 } = {}) {
-  const hex = /^#?[0-9a-f]{6}$/i.test(color) ? (color.startsWith('#') ? color : `#${color}`) : '#5a4636';
+  const c = typeof color === 'string' ? color.trim() : '';
+  const hex = /^#?[0-9a-f]{6}$/i.test(c) ? (c.startsWith('#') ? c : `#${c}`) : '#5a4636';
+  const name = typeof pattern === 'string' && /^[A-Za-z0-9&_-]{1,40}$/.test(pattern) ? pattern : 'Original2';
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(Number(v) || 0)));
   return [
     { category: 'skin_smooth', skinSmoothStrength: 0, skinSmoothColorIntensity: 0 },
     {
       category: 'eyebrows',
-      pattern: { type: 'shape', name: pattern, thickness: clamp(thickness, -100, 100), curvature: clamp(curvature, -100, 100), definition: 40 },
+      pattern: { type: 'shape', name, thickness: clamp(thickness, -100, 100), curvature: clamp(curvature, -100, 100), definition: 40 },
       palettes: [{ color: hex, colorIntensity: clamp(intensity, 0, 100), texture: 'matte' }],
     },
   ];

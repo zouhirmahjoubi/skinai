@@ -1,7 +1,8 @@
 // Noise-aware comparison of check-ins. A single selfie is a noisy measurement:
-// light, angle and camera all move the scores. Public retake tests on YouCam
-// skin analysis report raw_score shifting about 1-2 points (SD) between photos
-// taken minutes apart in the same light, and up to ~4 across evenings. Ahead
+// light, angle and camera all move the scores. Published retake tests on
+// YouCam skin analysis (github.com/StuartYo/youcam-claim-guard, README "Noise
+// floor") report raw_score SDs of about 1-2 points between photos taken
+// minutes apart in the same light, and up to ~3.75 across evenings. Ahead
 // therefore treats a move smaller than CHANGE as "steady" and only calls a
 // move larger than BIG_CHANGE "a lot".
 
@@ -13,14 +14,18 @@ export const BIG_CHANGE = 12;
 // lighting, not skin, could explain a change.
 export const LIGHT_TOLERANCE = 0.15;
 
-/** Picks the comparable baseline: the first check-in taken at the same quality tier. */
+/** One trend line: same quality tier, and synthetic sample check-ins never mix with real ones. */
+export const sameSeries = (a, b) => a.tier === b.tier && Boolean(a.sample) === Boolean(b.sample);
+
+/** Picks the comparable baseline: the first check-in in the same series. */
 export function baselineFor(checkins, current) {
-  return checkins.find((c) => c.tier === current.tier && c.id !== current.id) || null;
+  return checkins.find((c) => sameSeries(c, current) && c.id !== current.id) || null;
 }
 
 export function previousFor(checkins, current) {
-  const same = checkins.filter((c) => c.tier === current.tier && c.date < current.date && c.id !== current.id);
-  return same.length ? same[same.length - 1] : null;
+  const same = checkins.filter((c) => sameSeries(c, current) && c.date <= current.date && c.id !== current.id && c !== current);
+  const before = same.filter((c) => c.date < current.date || (c.createdAt || '') < (current.createdAt || ''));
+  return before.length ? before[before.length - 1] : null;
 }
 
 function valueOf(score) {
@@ -50,7 +55,7 @@ export function compareCheckin(checkins, current) {
   const rows = CONCERNS.map((c) => {
     const vsBase = base ? compareScore(current.scores?.[c.key], base.scores?.[c.key]) : { delta: null, status: 'new' };
     const vsPrev = prev ? compareScore(current.scores?.[c.key], prev.scores?.[c.key]) : { delta: null, status: 'new' };
-    const history = sorted.filter((x) => x.tier === current.tier && x.date <= current.date).map((x) => valueOf(x.scores?.[c.key]));
+    const history = sorted.filter((x) => sameSeries(x, current) && x.date <= current.date).map((x) => valueOf(x.scores?.[c.key]));
     return { key: c.key, label: c.label, score: current.scores?.[c.key] || null, vsBase, vsPrev, history };
   });
   return { baseline: base, previous: prev, rows, lighting: lightingCheck(current, base) };

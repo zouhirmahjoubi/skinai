@@ -1,9 +1,10 @@
 import { useStore } from '../lib/store.jsx';
 import { TopBar, Icon } from '../components.jsx';
 import { FACE_SHAPE_TIPS } from '../../../core/brows.js';
+import { PRODUCT_BY_ID } from '../../../core/catalog.js';
 
 export default function FittingSheet() {
-  const { print, looks, profile, server } = useStore();
+  const { print, looks, list, profile, server } = useStore();
   if (!print) {
     return (
       <div className="stack-lg">
@@ -17,8 +18,11 @@ export default function FittingSheet() {
   }
   const c = print.colors || {};
   const f = print.face || {};
-  const hairLooks = looks.filter((l) => l.kind === 'hair').slice(0, 6);
+  const hairLooks = looks.filter((l) => l.kind === 'hair' || l.kind === 'headwear').slice(0, 6);
   const brow = looks.find((l) => l.kind === 'brows');
+  const pencils = list.map((id) => PRODUCT_BY_ID[id]).filter((p) => p && p.hex);
+  const isDemo = Boolean(print.demo) || hairLooks.some((l) => l.demo) || Boolean(brow?.demo);
+  const tip = FACE_SHAPE_TIPS[String(f.faceShape || '').toLowerCase()];
 
   return (
     <div className="stack-lg">
@@ -27,22 +31,23 @@ export default function FittingSheet() {
         <h1>Wig and brow fitting sheet</h1>
         <p>{profile.name ? `For ${profile.name}. ` : ''}My natural hair and brows, recorded {new Date(`${print.date}T12:00:00`).toLocaleDateString()} before treatment changes.</p>
       </header>
+      {isDemo && <div className="banner">Demo mode: this sheet uses simulated colours and face shape, and try-on images are the photo unchanged. Make it again with a YouCam key on the server before using it with a wig specialist.</div>}
       <section className="sheet stack">
         <div className="row wrap" style={{ alignItems: 'flex-start', gap: 16 }}>
           {print.photo && <img src={print.photo} alt="Reference selfie" style={{ width: 140, borderRadius: 14 }} />}
           <table className="grid" style={{ flex: '1 1 220px' }}>
             <tbody>
-              <tr><th scope="row">Hair colour</th><td><span style={{ display: 'inline-block', width: 14, height: 14, borderRadius: 7, background: c.hair_color, verticalAlign: -2, marginRight: 6 }} />{c.hair_color_name || ''} {c.hair_color}</td></tr>
-              <tr><th scope="row">Brow colour</th><td><span style={{ display: 'inline-block', width: 14, height: 14, borderRadius: 7, background: c.eyebrow_color, verticalAlign: -2, marginRight: 6 }} />{c.eyebrow_color}</td></tr>
-              <tr><th scope="row">Skin tone</th><td><span style={{ display: 'inline-block', width: 14, height: 14, borderRadius: 7, background: c.skin_color, verticalAlign: -2, marginRight: 6 }} />{c.skin_color}</td></tr>
+              <tr><th scope="row">Hair colour family</th><td>{c.hair_color_name || '–'}</td></tr>
+              <tr><th scope="row">Brow colour</th><td>{c.eyebrow_color ? <><span className="dot" style={{ background: c.eyebrow_color }} aria-hidden="true" />{c.eyebrow_color}</> : '–'}</td></tr>
+              <tr><th scope="row">Skin tone</th><td>{c.skin_color ? <><span className="dot" style={{ background: c.skin_color }} aria-hidden="true" />{c.skin_color}</> : '–'}</td></tr>
               <tr><th scope="row">Face shape</th><td>{f.faceShape || '–'}</td></tr>
               <tr><th scope="row">Brow shape</th><td>{f.browShape || '–'}</td></tr>
               <tr><th scope="row">Brow thickness</th><td>{f.browThickness || '–'}</td></tr>
             </tbody>
           </table>
         </div>
-        {FACE_SHAPE_TIPS[String(f.faceShape || '').toLowerCase()] && <p className="small">{FACE_SHAPE_TIPS[String(f.faceShape).toLowerCase()]}</p>}
-        <p className="fine">Colours were measured from a photo by YouCam’s AI Facial Color Tones Analyzer and shift with lighting, so match against real hair samples in daylight.</p>
+        {tip && <p className="small">{tip}</p>}
+        <p className="fine">Brow and skin colours were measured from a photo by YouCam’s AI Facial Color Tones Analyzer; hair is given as a colour family, not an exact shade. Colours shift with lighting. For an exact wig match, keep a lock of hair from the top front of your head (where it is lightest) in a sealed bag and compare wigs against it in daylight.</p>
       </section>
       {hairLooks.length > 0 && (
         <section className="sheet">
@@ -57,10 +62,16 @@ export default function FittingSheet() {
           </div>
         </section>
       )}
-      {brow && (
-        <section className="sheet">
-          <h2 style={{ marginBottom: 12 }}>Brow reference</h2>
-          <img src={brow.image} alt={brow.label} style={{ maxWidth: 260, borderRadius: 12 }} />
+      {(brow || pencils.length > 0) && (
+        <section className="sheet stack">
+          <h2>Brow reference</h2>
+          {brow && <img src={brow.image} alt={brow.label} style={{ maxWidth: 260, borderRadius: 12 }} />}
+          {pencils.map((p) => (
+            <p key={p.id} className="small">
+              <span className="dot" style={{ background: p.hex }} aria-hidden="true" />
+              {p.name} ({p.line})
+            </p>
+          ))}
         </section>
       )}
       <section className="sheet tint small">

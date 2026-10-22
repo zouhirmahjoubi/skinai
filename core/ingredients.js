@@ -89,9 +89,18 @@ export function shelfContext(profile, notes = []) {
   return { avoid: [...avoid], caution: [...caution], needs: [...needs] };
 }
 
+/** SPF stated on the label (product.spf field or "SPF 30" in the name); 0 if none. */
+export function labelledSpf(product) {
+  const m = /\bspf\s*(\d+)/i.exec(product?.name || '');
+  return Number(product?.spf) || (m ? Number(m[1]) : 0);
+}
+
 /** Judges one product: verdict "avoid" | "caution" | "good", with human-readable reasons. */
 export function evaluateProduct(product, ctx) {
   const found = classify(parseInci(product.ingredients));
+  // Zinc oxide and titanium dioxide are also pigments and skin protectants;
+  // only a product tested and labelled SPF 30+ counts as sunscreen.
+  if (found.mineral_spf && labelledSpf(product) < 30) delete found.mineral_spf;
   const reasons = [];
   let verdict = 'good';
   for (const c of ctx.avoid) {

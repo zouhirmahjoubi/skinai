@@ -3,16 +3,20 @@
 // are synthetic but follow the documented EGFR-inhibitor pattern: an
 // acne-like rash in the first weeks, then dryness.
 
+// Local calendar dates, like db.today(): toISOString() would give UTC dates,
+// which run a day ahead in US evenings.
+const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 const day = (offset, base) => {
   const d = new Date(base);
   d.setDate(d.getDate() + offset);
-  return d.toISOString().slice(0, 10);
+  return iso(d);
 };
 
 export function sampleJourney(now = new Date()) {
   const start = new Date(now);
   start.setDate(start.getDate() - 17);
-  const startDate = start.toISOString().slice(0, 10);
+  const startDate = iso(start);
   const s = (moisture, redness, acne, texture, radiance, age_spot, oiliness, dark_circle) => {
     const v = { moisture, redness, acne, texture, radiance, age_spot, oiliness, dark_circle };
     return Object.fromEntries(Object.entries(v).map(([k, raw]) => [k, { raw, ui: Math.round(60 + raw * 0.35), mask: null }]));
@@ -29,7 +33,7 @@ export function sampleJourney(now = new Date()) {
     print: {
       sample: true,
       date: day(-3, start),
-      colors: { hair_color: '#3b2a22', hair_color_name: 'Brown', eyebrow_color: '#33241d', skin_color: '#b98a6e', eye_color: '#4a3020', lip_color: '#a85e5e' },
+      colors: { hair_color: '#42280E', hair_color_name: 'Brown', eyebrow_color: '#33241d', skin_color: '#b98a6e', eye_color: '#4a3020', lip_color: '#a85e5e' },
       face: { faceShape: 'Oval', browShape: 'Soft Angled', browThickness: 'Average' },
     },
   };

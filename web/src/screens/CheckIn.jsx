@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore, go } from '../lib/store.jsx';
 import { api } from '../lib/api.js';
 import { newId, today } from '../lib/db.js';
 import { TopBar, Capture, Steps, ErrorBox } from '../components.jsx';
 import { lightingCheck } from '../../../core/trends.js';
 
-const STEPS = ['Preparing your photo', 'Uploading securely', 'Analysing 8 skin signals', 'Saving to your journal'];
+const STEPS = ['Uploading securely', 'Analysing 8 skin signals', 'Saving to your journal'];
 
 export default function CheckIn() {
   const { checkins, addCheckin, server } = useStore();
@@ -13,24 +13,34 @@ export default function CheckIn() {
   const [step, setStep] = useState(-1);
   const [error, setError] = useState(null);
   const [captureKey, setCaptureKey] = useState(0);
-  const first = checkins.find((c) => !c.sample);
-  const baseline = checkins[0];
+  const alive = useRef(true);
+  useEffect(
+    () => () => {
+      alive.current = false;
+    },
+    [],
+  );
+
+  // Only the person's own check-ins count here: the sample journey is never a baseline.
+  const real = checkins.filter((c) => !c.sample);
+  const hasSample = checkins.length > real.length;
+  const baseline = real[0];
 
   const short = shot ? Math.min(shot.width, shot.height) : 0;
   const tier = short >= 1080 ? 'hd' : short >= 480 ? 'sd' : null;
-  const tierMismatch = shot && baseline && tier && !checkins.some((c) => c.tier === tier);
-  const sameTierBase = checkins.find((c) => c.tier === tier);
+  const tierMismatch = shot && baseline && tier && !real.some((c) => c.tier === tier);
+  const sameTierBase = real.find((c) => c.tier === tier);
   const light = shot && sameTierBase ? lightingCheck({ capture: { brightness: shot.brightness } }, sameTierBase) : { comparable: true };
 
   async function analyse() {
+    if (step >= 0) return;
     setError(null);
     try {
       setStep(0);
-      setStep(1);
       const up = await api.upload(shot.blob);
-      setStep(2);
+      setStep(1);
       const result = await api.analyzeSkin(up.fileId, tier);
-      setStep(3);
+      setStep(2);
       const checkin = {
         id: newId(),
         date: today(),
@@ -43,10 +53,14 @@ export default function CheckIn() {
         baseImage: result.baseImage,
         capture: { brightness: shot.brightness, width: shot.width, height: shot.height, source: shot.source },
         demo: Boolean(result.demo),
+        deletedFromYouCam: Boolean(result.deleted),
       };
       await addCheckin(checkin);
-      go(`/result/${checkin.id}`);
+      // The check-in is saved either way (it shows on Today and in Skin);
+      // only open the result if the person is still on this screen.
+      if (alive.current) go(`/result/${checkin.id}`);
     } catch (err) {
+      if (!alive.current) return;
       setStep(-1);
       setError(err);
     }
@@ -62,18 +76,28 @@ export default function CheckIn() {
     <div className="stack-lg">
       <TopBar back="#/skin" title="Check-in" mode={server.mode} />
       <div className="stack">
-        <h1>{first ? 'Weekly check-in' : 'Baseline photo'}</h1>
+        <h1>{baseline ? 'Weekly check-in' : 'Baseline photo'}</h1>
         <p className="muted">Face the light, no makeup, hair back. Fit your face inside the oval and look straight ahead.</p>
+        {hasSample && !baseline && <div className="banner info">This photo starts your own trend line. It isn’t compared with the sample journey’s scores.</div>}
       </div>
 
       {!shot && <Capture key={captureKey} mode="face" ghost={baseline?.photo} onCapture={setShot} cta="Take check-in photo" />}
 
       {shot && (
         <div className="stack">
+          <p className="sr-only" role="status">
+            {step >= 0 ? `${STEPS[step]}…${step === 1 ? ' This usually takes 10 to 30 seconds.' : ''}` : ''}
+          </p>
           <div className="photo">
             <img src={shot.dataUrl} alt="Your check-in photo" />
           </div>
-          {!tier && <div className="banner">This photo is too small to analyse ({short}px). Move closer to the camera or upload a sharper photo.</div>}
+          {!tier && (
+            <div className="banner">
+              {shot.source === 'camera'
+                ? `This camera’s resolution is too low for skin analysis (${short}px; 480px needed). Upload a selfie taken with your phone instead.`
+                : `This photo is too small to analyse (${short}px; 480px needed). Zoom out, or upload a higher-resolution photo.`}
+            </div>
+          )}
           {tier && (
             <p className="fine">
               {tier === 'hd' ? 'HD analysis' : 'Standard analysis'} ({shot.width}×{shot.height}px).

@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../lib/store.jsx';
 import { api } from '../lib/api.js';
 import { db, newId, today } from '../lib/db.js';
+import { resizeJpeg } from '../lib/image.js';
 import { TopBar, Capture, Steps, ErrorBox, CompareSlider } from '../components.jsx';
-import { browPatternFor, browThicknessFor, FACE_SHAPE_TIPS } from '../../../core/brows.js';
+import { browPatternFor, FACE_SHAPE_TIPS } from '../../../core/brows.js';
+import { BROW_PRODUCTS } from '../../../core/catalog.js';
+import { closest } from '../../../core/color.js';
 
 // Upload each photo once per session and reuse its YouCam file id.
 const fileIds = new Map();
@@ -24,34 +27,70 @@ async function withFile(key, dataUrl, fn) {
   }
 }
 
-const BROW_COLORS = [
-  ['Soft black', '#2b2522'],
-  ['Dark brown', '#3b2a20'],
-  ['Medium brown', '#5a4030'],
-  ['Taupe', '#7a6656'],
-  ['Dark blonde', '#9a7d5c'],
-  ['Auburn', '#6b3a2a'],
-];
+const demoLabel = (label, demo) => (demo ? `${label} (demo, photo unchanged)` : label);
 
-function Swatch({ label, hex, name }) {
+function Swatch({ label, hex, name, family }) {
   return (
     <div className="swatch">
       <div className="chipcolor" style={{ background: hex || 'var(--tint)' }} />
       <div>
         <strong>{label}</strong>
-        {name ? `${name}, ` : ''}
-        {hex || 'not read'}
+        {family ? name || 'not read' : <>{name ? `${name}, ` : ''}{hex || 'not read'}</>}
       </div>
     </div>
   );
 }
 
-function PrintSection() {
+/** A shop's product photo: picked from the phone (re-encoded here) or pasted as a link. */
+function ProductPhotoPicker({ label, hint, photo, onPhoto, url, onUrl, minShort = 0 }) {
+  const [problem, setProblem] = useState('');
+  async function pick(e) {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    setProblem('');
+    try {
+      const j = await resizeJpeg(f, 1024); // Hairstyle VTO: JPEG, long side <= 1024
+      if (minShort && Math.min(j.width, j.height) < minShort) {
+        setProblem(`That photo is only ${j.width}×${j.height} px; at least ${minShort} px on each side is needed.`);
+        return;
+      }
+      onPhoto({ id: newId(), dataUrl: j.dataUrl });
+    } catch (err) {
+      setProblem(err.message);
+    }
+  }
+  return (
+    <div className="stack">
+      <label className="field">
+        <span>{label}</span>
+        <input className="input" type="file" accept="image/*" onChange={pick} />
+        <small>{hint}</small>
+      </label>
+      {photo && (
+        <div className="row">
+          <img src={photo.dataUrl} alt="Chosen product photo" style={{ width: 64, borderRadius: 10 }} />
+          <button className="btn quiet small" onClick={() => onPhoto(null)}>Remove</button>
+        </div>
+      )}
+      <label className="field">
+        <span>Or paste a link to the photo</span>
+        <input className="input" type="url" inputMode="url" placeholder="https://…/photo.jpg" value={url} onChange={(e) => onUrl(e.target.value.trim())} />
+        <small>A direct link to a .jpg or .png. If it doesn’t work, save the picture and add it above.</small>
+      </label>
+      {problem && <div className="banner">{problem}</div>}
+    </div>
+  );
+}
+
+const PRINT_STEPS = ['Uploading securely', 'Reading colours and face shape'];
+
+function PrintSection({ retake, setRetake }) {
   const { print, savePrint } = useStore();
-  const [retake, setRetake] = useState(false);
   const [step, setStep] = useState(-1);
   const [error, setError] = useState(null);
   const [key, setKey] = useState(0);
+  const [justSaved, setJustSaved] = useState(false);
 
   async function onCapture(shot) {
     setError(null);
@@ -64,6 +103,7 @@ function PrintSection() {
       fileIds.set(`print:${p.date}`, fileId);
       await savePrint(p);
       setRetake(false);
+      setJustSaved(true);
       setStep(-1);
     } catch (err) {
       setStep(-1);
@@ -74,19 +114,21 @@ function PrintSection() {
 
   if (!print || retake) {
     return (
-      <section className="sheet stack" aria-labelledby="print">
+      <section className="sheet stack" aria-labelledby="print" id="print-section">
         <h2 id="print">Your Hair & Brow Print</h2>
-        <p>One clear selfie records your natural hair colour, brow colour, brow shape and face shape, using YouCam’s facial colour and face attribute analysis. Wig specialists and brow artists can match from it, even after your hair has changed.</p>
+        <p>One clear selfie records your hair colour family, brow colour, brow shape and face shape, using YouCam’s Facial Color Tones and Face Attributes analysis. Show it to your wig specialist or brow artist, even after your hair has changed. For an exact colour match, also keep a lock of your hair.</p>
         <p className="fine">Hair down, forehead visible, face the light.</p>
+        {retake && print && !print.sample && <p className="fine">A new print replaces your saved colours and shapes. To see brows on your face as it is now, keep this print and use “Take a photo of today” under Your brows, recreated.</p>}
+        <p className="sr-only" role="status">{step >= 0 ? `${PRINT_STEPS[step]}…` : ''}</p>
         {step >= 0 ? (
-          <Steps steps={['Uploading securely', 'Reading colours and face shape']} at={step} />
+          <Steps steps={PRINT_STEPS} at={step} />
         ) : (
           <>
             <ErrorBox error={error} />
             <Capture key={key} mode="face" maxLong={1600} onCapture={onCapture} cta="Take print photo" />
           </>
         )}
-        {retake && <button className="btn quiet" onClick={() => setRetake(false)}>Keep my current print</button>}
+        {retake && print && <button className="btn quiet" onClick={() => setRetake(false)}>Keep my current print</button>}
       </section>
     );
   }
@@ -95,14 +137,15 @@ function PrintSection() {
   const f = print.face || {};
   const tip = FACE_SHAPE_TIPS[String(f.faceShape || '').toLowerCase()];
   return (
-    <section className="sheet stack" aria-labelledby="print">
+    <section className="sheet stack" aria-labelledby="print" id="print-section">
       <div className="section-title">
         <h2 id="print">Your Hair & Brow Print</h2>
         <span className="fine">Saved {new Date(`${print.date}T12:00:00`).toLocaleDateString()}</span>
       </div>
       {(print.sample || print.demo) && <div className="banner info">{print.sample ? 'Sample print.' : 'Demo result: colours and shapes are placeholders until a YouCam key is configured.'}</div>}
+      {justSaved && <p className="fine" role="status">Saved on this device. Your print can’t be retaken once your hair changes, so download a copy now and then from Settings.</p>}
       <div className="swatches">
-        <Swatch label="Hair" hex={c.hair_color} name={c.hair_color_name} />
+        <Swatch label="Hair colour family" hex={c.hair_color} name={c.hair_color_name} family />
         <Swatch label="Brows" hex={c.eyebrow_color} />
         <Swatch label="Skin" hex={c.skin_color} />
       </div>
@@ -113,14 +156,14 @@ function PrintSection() {
         <div className="fact">
           <span>Eye colour</span>
           <strong>
-            {c.eye_color && <span aria-hidden="true" style={{ display: 'inline-block', width: 12, height: 12, borderRadius: 6, background: c.eye_color, marginRight: 6 }} />}
+            {c.eye_color && <span aria-hidden="true" className="dot" style={{ background: c.eye_color }} />}
             {c.eye_color_name || (c.eye_color ? 'Measured' : 'Not read')}
           </strong>
         </div>
       </div>
       {tip && <p className="small"><strong>Wig shape tip: </strong>{tip}</p>}
       <div className="row wrap">
-        <a className="btn primary" style={{ flex: 1 }} href="#/fitting">Fitting sheet for your specialist</a>
+        <a className="btn primary" href="#/fitting">Fitting sheet for your specialist</a>
         <button className="btn secondary" onClick={() => setRetake(true)}>Retake</button>
       </div>
     </section>
@@ -140,17 +183,56 @@ function StyleThumb({ t, pressed, onPress }) {
           </svg>
         </div>
       )}
-      <span>{t.title}</span>
+      <span>
+        {t.title}
+        {t.keepsColor && <span className="fine" style={{ display: 'block', padding: 0 }}>Can keep your colour</span>}
+      </span>
     </button>
   );
 }
 
-function WigSection() {
-  const { addLook } = useStore();
+/** The head-and-shoulders portrait shared by wig and head-covering try-ons. */
+function usePortrait() {
   const [portrait, setPortrait] = useState(null);
+  useEffect(() => {
+    db.get('portrait').then((p) => p && setPortrait(p));
+  }, []);
+  async function save(shot) {
+    const p = { id: newId(), dataUrl: shot.dataUrl, width: shot.width, height: shot.height };
+    await db.set('portrait', p);
+    setPortrait(p);
+  }
+  async function clear() {
+    await db.del('portrait');
+    setPortrait(null);
+  }
+  return { portrait, save, clear };
+}
+
+function PortraitPicker({ portrait, save, clear, why }) {
+  if (!portrait) {
+    return (
+      <>
+        <p className="fine">{why} Head and shoulders in the photo, hair down. Hair already short? Upload a photo of you from before treatment instead.</p>
+        <Capture mode="portrait" maxLong={1024} onCapture={save} cta="Take portrait" />
+      </>
+    );
+  }
+  return (
+    <div className="row">
+      <img src={portrait.dataUrl} alt="Your portrait" style={{ width: 72, borderRadius: 12 }} />
+      <button className="btn quiet small" onClick={clear}>Change photo</button>
+    </div>
+  );
+}
+
+function WigSection({ portraitState }) {
+  const { addLook } = useStore();
+  const { portrait, save, clear } = portraitState;
   const [templates, setTemplates] = useState([]);
   const [showAll, setShowAll] = useState(false);
   const [chosen, setChosen] = useState(null);
+  const [refPhoto, setRefPhoto] = useState(null);
   const [refUrl, setRefUrl] = useState('');
   const [keepColor, setKeepColor] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -159,34 +241,34 @@ function WigSection() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    db.get('portrait').then((p) => p && setPortrait(p));
     api.hairTemplates().then((r) => setTemplates(r.templates || [])).catch((err) => setError(err));
   }, []);
 
-  async function savePortrait(shot) {
-    const p = { id: newId(), dataUrl: shot.dataUrl, width: shot.width, height: shot.height };
-    await db.set('portrait', p);
-    setPortrait(p);
-    setResult(null);
-  }
+  const isRef = Boolean(refPhoto || refUrl);
+  // YouCam honours hair_color only on templates with keep_users_color; a shop photo keeps its own colour.
+  const colourKeepable = !isRef && chosen?.keepsColor === true;
 
   async function tryOn() {
     setError(null);
     setBusy(true);
     setSaved(false);
     try {
+      const mine = colourKeepable && keepColor;
       const out = await withFile(`portrait:${portrait.id}`, portrait.dataUrl, (fileId) =>
-        api.hairTryOn({ fileId, templateId: refUrl ? null : chosen?.id, refUrl: refUrl || undefined, keepColor }),
+        refPhoto
+          ? withFile(`ref:${refPhoto.id}`, refPhoto.dataUrl, (refFileId) => api.hairTryOn({ fileId, refFileId }))
+          : api.hairTryOn({ fileId, templateId: refUrl ? null : chosen.id, refUrl: refUrl || undefined, keepColor: mine }),
       );
-      setResult({ image: out.image, demo: out.demo, label: refUrl ? 'Wig from a shop photo' : chosen.title });
+      setResult({ image: out.image, demo: out.demo, label: isRef ? 'Wig from a shop photo' : chosen.title, mine });
     } catch (err) {
       setError(err);
     }
     setBusy(false);
   }
 
-  async function save() {
-    await addLook({ id: newId(), kind: 'hair', image: result.image, label: `${result.label}${keepColor ? ', my colour' : ''}`, createdAt: new Date().toISOString(), demo: result.demo });
+  async function saveLook() {
+    const label = `${result.label}${result.mine ? ', my colour' : ''}`;
+    await addLook({ id: newId(), kind: 'hair', image: result.image, label: demoLabel(label, result.demo), createdAt: new Date().toISOString(), demo: result.demo });
     setSaved(true);
   }
 
@@ -195,98 +277,91 @@ function WigSection() {
     <section className="sheet stack" aria-labelledby="wig">
       <h2 id="wig">Try wig styles on yourself</h2>
       <p>Try styles from home, at your own pace, before you visit a wig specialist or order online. Many shops won’t take a wig back once it has been worn.</p>
-      {!portrait ? (
+      <PortraitPicker portrait={portrait} save={save} clear={() => clear().then(() => setResult(null))} why="Hairstyle try-on needs your head and shoulders." />
+      {portrait && result && (
+        <div className="stack">
+          <CompareSlider before={portrait.dataUrl} after={result.image} afterLabel={result.demo ? `${result.label} (demo)` : result.label} />
+          {result.demo && <div className="banner">Demo mode: this is your photo unchanged. With a YouCam key on the server, this shows the real try-on.</div>}
+          <div className="row">
+            <button className="btn primary" style={{ flex: 1 }} onClick={saveLook} disabled={saved}>{saved ? 'Saved to your looks' : 'Save to my looks'}</button>
+            <button className="btn secondary" onClick={() => setResult(null)}>Try another</button>
+          </div>
+        </div>
+      )}
+      {portrait && !result && (
         <>
-          <p className="fine">Hairstyle try-on needs your head and shoulders in the photo, hair down.</p>
-          <Capture mode="portrait" maxLong={1024} onCapture={savePortrait} cta="Take portrait" />
-        </>
-      ) : (
-        <>
-          {!result && (
-            <div className="row">
-              <img src={portrait.dataUrl} alt="Your portrait" style={{ width: 72, borderRadius: 12 }} />
-              <button className="btn quiet small" onClick={() => db.del('portrait').then(() => setPortrait(null))}>Change photo</button>
-            </div>
+          <h3>Choose a style</h3>
+          <div className="styles">
+            {visible.map((t) => (
+              <StyleThumb
+                key={t.id}
+                t={t}
+                pressed={chosen?.id === t.id && !isRef}
+                onPress={() => {
+                  setChosen(t);
+                  setRefUrl('');
+                  setRefPhoto(null);
+                }}
+              />
+            ))}
+          </div>
+          {templates.length > 9 && <button className="btn quiet small" onClick={() => setShowAll((s) => !s)}>{showAll ? 'Show fewer' : `Show all ${templates.length} styles`}</button>}
+          <ProductPhotoPicker
+            label="Or try a wig from any shop: add its photo"
+            hint="Save or screenshot the shop’s photo of the wig on a model facing forward. Mannequin and flat-lay photos won’t work."
+            photo={refPhoto}
+            onPhoto={(p) => {
+              setRefPhoto(p);
+              if (p) setRefUrl('');
+            }}
+            url={refUrl}
+            onUrl={(u) => {
+              setRefUrl(u);
+              if (u) setRefPhoto(null);
+            }}
+          />
+          {colourKeepable ? (
+            <label className="toggle">
+              <span>
+                <strong>Keep my natural colour</strong>
+                <span className="fine" style={{ display: 'block' }}>Shows the cut in your own colour, the closest match to how you look now.</span>
+              </span>
+              <input type="checkbox" checked={keepColor} onChange={(e) => setKeepColor(e.target.checked)} />
+            </label>
+          ) : (
+            (isRef || chosen) && <p className="fine">{isRef ? 'A shop photo shows the wig in its own colour. Compare it with the colour family in your print.' : 'This style comes in its own colour.'}</p>
           )}
-          {result && (
-            <div className="stack">
-              <CompareSlider before={portrait.dataUrl} after={result.image} afterLabel={result.label} />
-              {result.demo && <div className="banner">Demo mode shows your own photo; a YouCam key on the server renders the real try-on.</div>}
-              <div className="row">
-                <button className="btn primary" style={{ flex: 1 }} onClick={save} disabled={saved}>{saved ? 'Saved to your looks' : 'Save to my looks'}</button>
-                <button className="btn secondary" onClick={() => setResult(null)}>Try another</button>
-              </div>
-            </div>
-          )}
-          {!result && (
-            <>
-              <h3>Choose a style</h3>
-              <div className="styles">
-                {visible.map((t) => (
-                  <StyleThumb key={t.id} t={t} pressed={chosen?.id === t.id && !refUrl} onPress={() => { setChosen(t); setRefUrl(''); }} />
-                ))}
-              </div>
-              {templates.length > 9 && <button className="btn quiet small" onClick={() => setShowAll((s) => !s)}>{showAll ? 'Show fewer' : `Show all ${templates.length} styles`}</button>}
-              <label className="field">
-                <span>Or paste a wig photo from any shop</span>
-                <input className="input" type="url" inputMode="url" placeholder="https://…/wig.jpg" value={refUrl} onChange={(e) => setRefUrl(e.target.value.trim())} />
-                <small>A product photo of the wig on a model works best.</small>
-              </label>
-              <label className="toggle">
-                <span>
-                  <strong>Keep my natural colour</strong>
-                  <span className="fine" style={{ display: 'block' }}>Shows the cut in your own colour, the closest match to how you look now.</span>
-                </span>
-                <input type="checkbox" checked={keepColor} onChange={(e) => setKeepColor(e.target.checked)} />
-              </label>
-              <ErrorBox error={error} />
-              <button className="btn primary block" onClick={tryOn} disabled={busy || (!chosen && !refUrl)}>
-                {busy ? 'Rendering your try-on…' : 'Try it on'}
-              </button>
-            </>
-          )}
+          <ErrorBox error={error} onRetry={error?.fix === 'photo' ? () => clear().then(() => setError(null)) : undefined} />
+          <button className="btn primary block" onClick={tryOn} disabled={busy || (!chosen && !isRef)}>
+            {busy ? 'Rendering your try-on…' : 'Try it on'}
+          </button>
         </>
       )}
     </section>
   );
 }
 
-function BrowSection() {
-  const { print, addLook } = useStore();
-  const [patterns, setPatterns] = useState([]);
-  const suggested = browPatternFor(print?.face?.browShape);
-  const [pattern, setPattern] = useState(suggested);
-  const [color, setColor] = useState(print?.colors?.eyebrow_color || '#3b2a20');
-  const [intensity, setIntensity] = useState(55);
+function HeadwearSection({ portraitState }) {
+  const { addLook } = useStore();
+  const { portrait, save, clear } = portraitState;
+  const [refPhoto, setRefPhoto] = useState(null);
+  const [refUrl, setRefUrl] = useState('');
+  const [gender, setGender] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [saved, setSaved] = useState(false);
+  const tooSmall = portrait && Math.min(portrait.width || 0, portrait.height || 0) < 512;
 
-  useEffect(() => {
-    api.browPatterns().then((r) => setPatterns(r.patterns || [])).catch(() => {});
-  }, []);
-  useEffect(() => {
-    setPattern(suggested);
-    if (print?.colors?.eyebrow_color) setColor(print.colors.eyebrow_color);
-  }, [print?.date]);
-
-  if (!print) {
-    return (
-      <section className="sheet stack" aria-labelledby="brows">
-        <h2 id="brows">Your brows, recreated</h2>
-        <p>Once your print is saved, Ahead can show your natural brow shape and colour drawn back on, a reference for brow pencils, stencils or a brow artist if your brows thin.</p>
-      </section>
-    );
-  }
-
-  async function preview() {
+  async function tryOn() {
     setBusy(true);
     setError(null);
     setSaved(false);
     try {
-      const out = await withFile(`print:${print.date}`, print.photo, (fileId) =>
-        api.browTryOn({ fileId, pattern, color, intensity, thickness: browThicknessFor(print.face?.browThickness) }),
+      const out = await withFile(`portrait:${portrait.id}`, portrait.dataUrl, (fileId) =>
+        refPhoto
+          ? withFile(`ref:${refPhoto.id}`, refPhoto.dataUrl, (refFileId) => api.hatTryOn({ fileId, refFileId, gender }))
+          : api.hatTryOn({ fileId, refUrl, gender }),
       );
       setResult(out);
     } catch (err) {
@@ -295,18 +370,154 @@ function BrowSection() {
     setBusy(false);
   }
 
+  return (
+    <section className="sheet stack" aria-labelledby="hats">
+      <h2 id="hats">Hats, caps and headbands</h2>
+      <p>Not everyone wants a wig. Try a soft cap, beanie or sun hat from any shop on yourself first, with YouCam’s hat try-on.</p>
+      {!portrait ? (
+        <PortraitPicker portrait={portrait} save={save} clear={clear} why="Head-covering try-on uses the same portrait as wig try-on." />
+      ) : result ? (
+        <div className="stack">
+          <img src={result.image} alt={demoLabel('Head-covering try-on', result.demo)} style={{ width: '100%', borderRadius: 16 }} />
+          <p className="fine">Styled preview: YouCam also restyles your outfit and background around the hat.</p>
+          {result.demo && <div className="banner">Demo mode: this is your photo unchanged. With a YouCam key on the server, this shows the real try-on.</div>}
+          <div className="row">
+            <button className="btn primary" style={{ flex: 1 }} disabled={saved} onClick={async () => { await addLook({ id: newId(), kind: 'headwear', image: result.image, label: demoLabel('Head covering', result.demo), createdAt: new Date().toISOString(), demo: result.demo }); setSaved(true); }}>
+              {saved ? 'Saved to your looks' : 'Save to my looks'}
+            </button>
+            <button className="btn secondary" onClick={() => setResult(null)}>Try another</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {tooSmall && <div className="banner">Head-covering try-on needs a portrait of at least 512 px on each side. Change the photo above to a sharper one.</div>}
+          <ProductPhotoPicker
+            label="Add a photo of the hat, cap or headband"
+            hint="A shop’s product photo with just the one item, filling a good part of the picture (at least 512 × 512 px)."
+            photo={refPhoto}
+            onPhoto={(p) => {
+              setRefPhoto(p);
+              if (p) setRefUrl('');
+            }}
+            url={refUrl}
+            onUrl={(u) => {
+              setRefUrl(u);
+              if (u) setRefPhoto(null);
+            }}
+            minShort={512}
+          />
+          <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend style={{ fontWeight: 700, marginBottom: 8 }}>Style the preview for</legend>
+            <div className="chips">
+              {[
+                ['female', 'Women’s styling'],
+                ['male', 'Men’s styling'],
+              ].map(([value, label]) => (
+                <button key={value} type="button" className="chip" aria-pressed={gender === value} onClick={() => setGender(value)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="fine" style={{ marginTop: 6 }}>YouCam needs this to style the outfit. Ahead never guesses it from your photo.</p>
+          </fieldset>
+          <ErrorBox error={error} />
+          <button className="btn primary block" onClick={tryOn} disabled={busy || tooSmall || !gender || !(refPhoto || refUrl)}>
+            {busy ? 'Rendering your try-on…' : 'Try it on'}
+          </button>
+        </>
+      )}
+    </section>
+  );
+}
+
+function BrowSection({ onNeedPrint }) {
+  const { print, addLook, list, toggleList } = useStore();
+  const [patterns, setPatterns] = useState([]);
+  const suggested = browPatternFor(print?.face?.browShape);
+  const [pattern, setPattern] = useState(suggested);
+  const myBrows = print?.colors?.eyebrow_color || null;
+  const pencils = useMemo(() => closest(BROW_PRODUCTS, myBrows), [myBrows]);
+  const [color, setColor] = useState(myBrows || '#3b2a20');
+  const [intensity, setIntensity] = useState(55);
+  const [todayPhoto, setTodayPhoto] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [result, setResult] = useState(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    api.browPatterns().then((r) => setPatterns(r.patterns || [])).catch(() => {});
+    db.get('browPhoto').then((p) => p && setTodayPhoto(p));
+  }, []);
+  useEffect(() => {
+    setPattern(suggested);
+    if (myBrows) setColor(myBrows);
+  }, [print?.date]);
+
+  if (!print) {
+    return (
+      <section className="sheet stack" aria-labelledby="brows">
+        <h2 id="brows">Your brows, recreated</h2>
+        <p>Once your print is saved, Ahead can draw your natural brow shape and colour back on, a reference for brow pencils, stencils or a brow artist if your brows thin.</p>
+      </section>
+    );
+  }
+
+  // Brows are drawn on a photo of today if there is one, otherwise on the print photo.
+  const source = todayPhoto
+    ? { key: `brow:${todayPhoto.id}`, dataUrl: todayPhoto.dataUrl, label: 'Today' }
+    : print.photo
+      ? { key: `print:${print.date}`, dataUrl: print.photo, label: 'At your print' }
+      : null;
+
+  async function saveTodayPhoto(shot) {
+    const p = { id: newId(), date: today(), dataUrl: shot.dataUrl };
+    await db.set('browPhoto', p);
+    setTodayPhoto(p);
+    setResult(null);
+  }
+
+  async function preview() {
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      // thickness 0: makeup-vto thickness is relative to the brow in the photo being rendered.
+      const out = await withFile(source.key, source.dataUrl, (fileId) => api.browTryOn({ fileId, pattern, color, intensity, thickness: 0 }));
+      setResult(out);
+    } catch (err) {
+      setError(err);
+    }
+    setBusy(false);
+  }
+
   const name = patterns.find((p) => p.label === pattern)?.name || pattern;
+  const pencil = BROW_PRODUCTS.find((p) => p.hex === color);
   return (
     <section className="sheet stack" aria-labelledby="brows">
       <h2 id="brows">Your brows, recreated</h2>
-      <p>Brows and lashes can thin during chemotherapy. Preview your own shape and colour drawn back on, using YouCam makeup try-on with skin smoothing switched off, so the rest of your face is untouched.</p>
-      {print.sample && <div className="banner info">The sample print has no photo. Retake the print with your own selfie to preview brows.</div>}
+      <p>Brows and lashes can thin during chemotherapy. See your own shape and colour drawn back on with YouCam makeup try-on. Skin smoothing is switched off, so the rest of your face is untouched.</p>
+      {todayPhoto ? (
+        <div className="row">
+          <img src={todayPhoto.dataUrl} alt="Your photo for brow preview" style={{ width: 72, borderRadius: 12 }} />
+          <span className="fine" style={{ flex: 1 }}>Brows are drawn on this photo, using the colour and shape saved in your print.</span>
+          <button className="btn quiet small" onClick={() => db.del('browPhoto').then(() => { setTodayPhoto(null); setResult(null); })}>Change</button>
+        </div>
+      ) : (
+        <details>
+          <summary style={{ cursor: 'pointer', fontWeight: 700, color: 'var(--accent)' }}>{print.sample ? 'Take a photo of today to preview brows' : 'Brows already thinning? Use a photo of today'}</summary>
+          <div className="stack" style={{ marginTop: 10 }}>
+            <p className="fine">Your saved print stays as it is; only the face the brows are drawn on changes.</p>
+            <Capture mode="face" maxLong={1600} onCapture={saveTodayPhoto} cta="Take a photo of today" />
+          </div>
+        </details>
+      )}
       {result ? (
         <div className="stack">
-          <CompareSlider before={print.photo} after={result.image} beforeLabel="Today" afterLabel={name} />
-          {result.demo && <div className="banner">Demo mode shows your own photo; a YouCam key on the server renders the brows.</div>}
-          <div className="row">
-            <button className="btn primary" style={{ flex: 1 }} disabled={saved} onClick={async () => { await addLook({ id: newId(), kind: 'brows', image: result.image, label: `Brows: ${name}`, createdAt: new Date().toISOString(), demo: result.demo }); setSaved(true); }}>
+          <CompareSlider before={source.dataUrl} after={result.image} beforeLabel={source.label} afterLabel={result.demo ? `${name} (demo)` : name} />
+          {result.demo && <div className="banner">Demo mode: this is your photo unchanged. With a YouCam key on the server, this draws the brows.</div>}
+          <div className="row wrap">
+            <button className="btn primary" disabled={saved} onClick={async () => { await addLook({ id: newId(), kind: 'brows', image: result.image, label: demoLabel(`Brows: ${name}`, result.demo), createdAt: new Date().toISOString(), demo: result.demo }); setSaved(true); }}>
               {saved ? 'Saved to your looks' : 'Save to my looks'}
             </button>
             <button className="btn secondary" onClick={() => setResult(null)}>Adjust</button>
@@ -318,8 +529,9 @@ function BrowSection() {
             <legend style={{ fontWeight: 700, marginBottom: 8 }}>Shape</legend>
             <div className="chips">
               {(patterns.length ? patterns : [{ label: suggested, name: 'Natural' }]).map((p) => (
-                <button key={p.label} type="button" className="chip" aria-pressed={pattern === p.label} style={pattern === p.label ? { background: 'var(--accent)', color: 'var(--accent-ink)', borderColor: 'var(--accent)' } : undefined} onClick={() => setPattern(p.label)}>
-                  {p.name}{p.label === suggested ? ' (closest to yours)' : ''}
+                <button key={p.label} type="button" className="chip" aria-pressed={pattern === p.label} onClick={() => setPattern(p.label)}>
+                  {p.name}
+                  {p.label === suggested ? ' (closest to yours)' : ''}
                 </button>
               ))}
             </div>
@@ -327,26 +539,42 @@ function BrowSection() {
           <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
             <legend style={{ fontWeight: 700, marginBottom: 8 }}>Colour</legend>
             <div className="chips">
-              {print.colors?.eyebrow_color && (
-                <button type="button" className="chip" aria-pressed={color === print.colors.eyebrow_color} onClick={() => setColor(print.colors.eyebrow_color)}>
-                  <span aria-hidden="true" style={{ display: 'inline-block', width: 12, height: 12, borderRadius: 6, background: print.colors.eyebrow_color, marginRight: 6, verticalAlign: -1 }} />
+              {myBrows && (
+                <button type="button" className="chip" aria-pressed={color === myBrows} onClick={() => setColor(myBrows)}>
+                  <span aria-hidden="true" className="chip-dot" style={{ background: myBrows }} />
                   My brows
                 </button>
               )}
-              {BROW_COLORS.map(([label, hex]) => (
-                <button key={hex} type="button" className="chip" aria-pressed={color === hex} style={color === hex ? { borderColor: 'var(--accent)', borderWidth: 2 } : undefined} onClick={() => setColor(hex)}>
-                  <span aria-hidden="true" style={{ display: 'inline-block', width: 12, height: 12, borderRadius: 6, background: hex, marginRight: 6, verticalAlign: -1 }} />
-                  {label}
+              {pencils.map(({ item, dE }, i) => (
+                <button key={item.id} type="button" className="chip" aria-pressed={color === item.hex} onClick={() => setColor(item.hex)}>
+                  <span aria-hidden="true" className="chip-dot" style={{ background: item.hex }} />
+                  {item.name.replace('Brow Pencil, ', '')}
+                  {myBrows && i === 0 ? ' (closest pencil)' : ''}
+                  {dE !== null && <span className="sr-only">, colour difference {dE.toFixed(1)}</span>}
                 </button>
               ))}
             </div>
+            {myBrows && pencils[0] && (
+              <p className="fine" style={{ marginTop: 6 }}>
+                Closest pencil to your measured brow colour: {pencils[0].item.name} (colour difference ΔE {pencils[0].dE.toFixed(1)}; under about 3 is hard to tell apart).
+              </p>
+            )}
           </fieldset>
           <label className="field">
             <span>Strength: {intensity}%</span>
             <input type="range" min="20" max="90" value={intensity} onChange={(e) => setIntensity(Number(e.target.value))} />
           </label>
+          {pencil && (
+            <button type="button" className="btn small secondary" aria-pressed={list.includes(pencil.id)} onClick={() => toggleList(pencil.id)}>
+              {list.includes(pencil.id) ? `${pencil.name} is on my list` : `Add ${pencil.name} ($${pencil.price}) to my list`}
+            </button>
+          )}
           <ErrorBox error={error} />
-          <button className="btn primary block" onClick={preview} disabled={busy || print.sample}>{busy ? 'Drawing your brows…' : 'Preview my brows'}</button>
+          {source ? (
+            <button className="btn primary block" onClick={preview} disabled={busy}>{busy ? 'Drawing your brows…' : 'Preview my brows'}</button>
+          ) : (
+            <button className="btn primary block" onClick={onNeedPrint}>Take my print selfie to preview brows</button>
+          )}
         </>
       )}
     </section>
@@ -355,7 +583,7 @@ function BrowSection() {
 
 const LETTER = (name) => `To my oncology team,
 
-I am starting a treatment that is expected to cause hair loss. Please could you write me a prescription for a "cranial prosthesis" for hair loss due to cancer treatment, so I can claim it through my health insurance.
+I am starting a treatment that is expected to cause hair loss. Please could you write me a prescription for a "cranial prosthesis" for hair loss due to cancer treatment, so I can claim it through my health insurance or my HSA/FSA.
 
 Many insurers process this under HCPCS code A9282 together with the diagnosis code for my hair loss.
 
@@ -367,16 +595,18 @@ function InsuranceHelp() {
   const [copied, setCopied] = useState(false);
   return (
     <details className="sheet">
-      <summary style={{ cursor: 'pointer' }}><h2 style={{ display: 'inline' }}>Paying for a wig</h2></summary>
+      <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Paying for a wig</summary>
       <div className="stack" style={{ marginTop: 12 }}>
         <ul className="list-plain small">
           <li>Some health plans in the US cover a wig as a “cranial prosthesis” when your doctor prescribes it. The word “wig” on a prescription is often rejected.</li>
           <li>Ask your insurer whether they cover it, how much (limits are often a few hundred dollars a year), and whether you pay first and claim back.</li>
+          <li>Original Medicare (Parts A and B) doesn’t pay for wigs, even with a prescription. Some Medicare Advantage plans include a wig allowance, so check your plan’s benefits.</li>
+          <li>With an HSA or FSA you can usually pay for a wig your doctor advises for hair loss from cancer treatment. Keep the prescription and the receipt. In the US it can also count as a medical expense on your taxes if you itemize (IRS Publication 502).</li>
           <li>Cancer charities and some treatment centres offer free or low-cost wigs and head coverings. Ask your nurse navigator or social worker.</li>
         </ul>
         <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', background: 'var(--tint)', padding: 14, borderRadius: 12, margin: 0 }}>{LETTER(profile?.name)}</pre>
         <button className="btn secondary" onClick={() => navigator.clipboard?.writeText(LETTER(profile?.name)).then(() => setCopied(true))}>{copied ? 'Copied' : 'Copy request'}</button>
-        <p className="fine">Coverage varies widely by plan and country. This is not insurance or legal advice.</p>
+        <p className="fine">Coverage varies widely by plan and country. This is not insurance, tax or legal advice.</p>
       </div>
     </details>
   );
@@ -405,6 +635,14 @@ function Gallery() {
 
 export default function Look() {
   const { server } = useStore();
+  const [retakePrint, setRetakePrint] = useState(false);
+  const portraitState = usePortrait();
+
+  function needPrint() {
+    setRetakePrint(true);
+    requestAnimationFrame(() => document.getElementById('print-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }
+
   return (
     <div className="stack-lg">
       <TopBar mode={server.mode} />
@@ -412,9 +650,10 @@ export default function Look() {
         <h1>Hair & brows</h1>
         <p className="muted">Keep your own look on record, and try on what comes next.</p>
       </div>
-      <PrintSection />
-      <WigSection />
-      <BrowSection />
+      <PrintSection retake={retakePrint} setRetake={setRetakePrint} />
+      <WigSection portraitState={portraitState} />
+      <BrowSection onNeedPrint={needPrint} />
+      <HeadwearSection portraitState={portraitState} />
       <Gallery />
       <InsuranceHelp />
     </div>

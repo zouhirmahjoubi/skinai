@@ -4,10 +4,11 @@ import { normalizeSkinResult, dstActionsFor } from '../core/concerns.js';
 import { compareCheckin, compareScore } from '../core/trends.js';
 import { watchNotes, questionsFor } from '../core/insights.js';
 import { parseInci, classify, shelfContext, rankShelf, evaluateProduct } from '../core/ingredients.js';
+import { deltaE2000Lab, closest, ita } from '../core/color.js';
 import { treatmentPhase, expectationsFor } from '../core/treatments.js';
 import { browPatternFor, browEffects, normalizeFaceAttributes } from '../core/brows.js';
 import { sampleJourney } from '../core/sample.js';
-import { CATALOG } from '../core/catalog.js';
+import { CATALOG, BROW_PRODUCTS } from '../core/catalog.js';
 
 test('dst_actions never mix HD and SD', () => {
   assert.ok(dstActionsFor('hd').every((a) => a.startsWith('hd_')));
@@ -150,4 +151,107 @@ test('face attributes are read from the documented result parameters', () => {
   const nested = normalizeFaceAttributes({ result: { FaceShape: { shape: 'Heart' }, eyebrow: { right_shape: 'Rounded' } } });
   assert.equal(nested.faceShape, 'Heart');
   assert.equal(nested.browShape, 'Rounded');
+});
+
+test('a real check-in is never compared with sample check-ins', () => {
+  const sj = sampleJourney();
+  const scores = Object.fromEntries(Object.keys(sj.checkins[0].scores).map((k) => [k, { raw: 60 }]));
+  const real = { id: 'r1', date: sj.checkins[3].date, createdAt: 'x', tier: 'hd', scores, capture: { brightness: 0.7 } };
+  const cmp = compareCheckin([...sj.checkins, real], real);
+  assert.equal(cmp.baseline, null);
+  assert.equal(cmp.previous, null);
+  assert.deepEqual(watchNotes(sj.profile, cmp).map((n) => n.id), ['baseline']);
+});
+
+test('sample journey dates are local calendar dates', () => {
+  const now = new Date(2026, 9, 21, 23, 30);
+  const pad = (n) => String(n).padStart(2, '0');
+  assert.equal(sampleJourney(now).checkins.at(-1).date, `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`);
+});
+
+test('treatmentPhase counts calendar days across DST changes', () => {
+  const pad = (n) => String(n).padStart(2, '0');
+  for (let i = 0; i < 400; i += 3) {
+    const s = new Date(2026, 0, 1 + i);
+    const sd = `${s.getFullYear()}-${pad(s.getMonth() + 1)}-${pad(s.getDate())}`;
+    for (const off of [-14, -1, 0, 6, 7, 13, 14, 21]) {
+      const now = new Date(s.getFullYear(), s.getMonth(), s.getDate() + off, 13);
+      const expected = off < 0 ? { phase: 'before', week: 0, daysUntil: -off } : { phase: 'during', week: Math.floor(off / 7) + 1, daysUntil: 0 };
+      assert.deepEqual(treatmentPhase(sd, now), expected, `${sd} +${off}`);
+    }
+  }
+});
+
+test('hair-loss card matches its own timing text', () => {
+  const now = new Date('2026-10-22T10:00:00');
+  assert.equal(expectationsFor(['chemo'], '2026-10-22', now).find((e) => e.id === 'chemo_hair'), undefined); // week 1
+  assert.equal(expectationsFor(['chemo'], '2026-10-15', now).find((e) => e.id === 'chemo_hair').timing, 'soon'); // week 2
+  assert.equal(expectationsFor(['chemo'], '2026-09-24', now).find((e) => e.id === 'chemo_hair').timing, 'now'); // week 5
+});
+
+test('a borderline drop in different light asks for a retake before a call', () => {
+  const profile = { treatments: ['egfr'], startDate: '2026-10-08' };
+  const now = new Date('2026-10-22');
+  const base = { id: 'a', date: '2026-10-07', tier: 'hd', scores: { acne: { raw: 90 } }, capture: { brightness: 0.5 } };
+  const rashOf = (c) => watchNotes(profile, compareCheckin([base, c], c), now).find((n) => n.expectation === 'egfr_rash');
+  const brighter = { id: 'b', date: '2026-10-21', tier: 'hd', scores: { acne: { raw: 84 } }, capture: { brightness: 0.6 } };
+  assert.equal(rashOf(brighter).level, 'watch');
+  assert.match(rashOf(brighter).confirm, /Retake/);
+  assert.equal(rashOf({ ...brighter, capture: { brightness: 0.52 } }).level, 'call', 'same light still escalates');
+  assert.equal(rashOf({ ...brighter, scores: { acne: { raw: 76 } } }).level, 'call', 'a large drop escalates in any light');
+});
+
+test('radiation darkening or peeling maps to the radiation note, not "not typical"', () => {
+  const profile = { treatments: ['radiation'], startDate: '2026-09-01' };
+  const checkins = [
+    { id: 'a', date: '2026-09-01', tier: 'hd', scores: { age_spot: { raw: 85 }, redness: { raw: 80 } } },
+    { id: 'b', date: '2026-10-01', tier: 'hd', scores: { age_spot: { raw: 70 }, redness: { raw: 79 } } },
+  ];
+  const notes = watchNotes(profile, compareCheckin(checkins, checkins[1]), new Date('2026-10-02'));
+  assert.ok(notes.some((n) => n.expectation === 'rad_redness'));
+  assert.ok(!notes.some((n) => n.id === 'unexplained:age_spot'));
+  assert.ok(questionsFor(notes).some((q) => /treated area/.test(q)));
+});
+
+test('steady note is scoped to the face and still points to the care team', () => {
+  const cmp = { baseline: true, lighting: { comparable: true, diff: 0 }, rows: [{ key: 'redness', vsBase: { status: 'steady', delta: 1 } }] };
+  const [n] = watchNotes({ treatments: ['immuno'], startDate: '2026-01-01' }, cmp, new Date('2026-02-10'));
+  assert.equal(n.id, 'steady');
+  assert.match(n.careTeam, /itch/);
+  assert.match(n.title, /face/);
+});
+
+test('deeper skin tones get a redness caveat on radiation or immunotherapy', () => {
+  const cmp = { baseline: true, lighting: { comparable: true, diff: 0 }, rows: [{ key: 'redness', vsBase: { status: 'steady', delta: 1 } }] };
+  const ids = (hex) => watchNotes({ treatments: ['radiation'], startDate: '2026-09-01' }, cmp, new Date('2026-10-02'), { skinHex: hex }).map((n) => n.id);
+  assert.ok(ita('#6b4a3a') < 10 && ita('#e8c4a8') > 10);
+  assert.ok(ids('#6b4a3a').includes('tone'));
+  assert.ok(!ids('#e8c4a8').includes('tone'));
+  assert.ok(!ids(undefined).includes('tone'));
+});
+
+test('early EGFR and chemo phases add preventive questions', () => {
+  assert.ok(questionsFor([], { treatments: ['egfr'], phase: { phase: 'before', week: 0 } }).some((q) => /preventive/.test(q)));
+  assert.ok(!questionsFor([], { treatments: ['egfr'], phase: { phase: 'during', week: 5 } }).some((q) => /preventive/.test(q)));
+  assert.ok(questionsFor([], { treatments: ['chemo'], phase: { phase: 'before', week: 0 } }).some((q) => /scalp cooling/.test(q)));
+});
+
+test('zinc/titanium only count as sunscreen on a labelled SPF 30+ product', () => {
+  const ctx = shelfContext({ treatments: ['chemo'] }, []);
+  const foundation = evaluateProduct({ id: 'f', name: 'Matte Foundation', type: 'moisturise', price: 1, ingredients: 'Water, Titanium Dioxide (CI 77891), Mica, Glycerin' }, ctx);
+  assert.ok(!foundation.reasons.some((r) => r.cls === 'mineral_spf'));
+  const spf = evaluateProduct(CATALOG.find((p) => p.id === 'sg-mineral-spf50'), ctx);
+  assert.ok(spf.reasons.some((r) => r.cls === 'mineral_spf'));
+});
+
+test('CIEDE2000 matches the Sharma et al. reference pair and ranks brow pencils', () => {
+  assert.equal(Math.round(deltaE2000Lab({ L: 50, a: 2.6772, b: -79.7751 }, { L: 50, a: 0, b: -82.7485 }) * 10000) / 10000, 2.0425);
+  assert.equal(deltaE2000Lab({ L: 40, a: 10, b: 10 }, { L: 40, a: 10, b: 10 }), 0);
+  assert.equal(closest(BROW_PRODUCTS, '#33241d')[0].item.id, 'sb-espresso');
+  assert.equal(closest(BROW_PRODUCTS, 'not a colour')[0].dE, null);
+});
+
+test('brow effects tolerate bad input', () => {
+  assert.equal(browEffects({ color: 123456 })[1].palettes[0].color, '#5a4636');
+  assert.equal(browEffects({ pattern: '../../etc' })[1].pattern.name, 'Original2');
 });

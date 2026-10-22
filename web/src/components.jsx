@@ -103,9 +103,10 @@ export function RoadAhead({ profile, checkins }) {
       if (!e.band) continue;
       const label = e.short || e.title;
       const from = Math.min(e.band[0], last);
-      const to = e.band[1] === null ? last : Math.min(e.band[1], last);
+      const open = e.band[1] === null || e.band[1] > last;
+      const to = open ? last : e.band[1];
       const prev = byLabel.get(label);
-      byLabel.set(label, prev ? { ...prev, from: Math.min(prev.from, from), to: Math.max(prev.to, to) } : { id: e.id, label, from, to });
+      byLabel.set(label, prev ? { ...prev, from: Math.min(prev.from, from), to: Math.max(prev.to, to), open: prev.open || open } : { id: e.id, label, from, to, open });
     }
   }
   const bands = [...byLabel.values()].map((b) => ({ ...b, now: current >= b.from && current <= b.to })).sort((a, b) => a.from - b.from);
@@ -116,7 +117,7 @@ export function RoadAhead({ profile, checkins }) {
   }, [current]);
 
   return (
-    <figure className="road" ref={ref} aria-label="Your treatment timeline" style={{ margin: '4px -16px 0' }}>
+    <div className="road" ref={ref} role="group" aria-label="Your treatment timeline">
       <div className="road-inner" role="list">
         {weeks.map((w) => (
           <div key={w} role="listitem" className={`road-week${w < current ? ' past' : ''}${w === current ? ' here' : ''}${checkedWeeks.has(w) ? ' checked' : ''}`} aria-label={`${w === 0 ? 'Before treatment' : `Week ${w}`}${w === current ? ', you are here' : ''}${checkedWeeks.has(w) ? ', checked in' : ''}`}>
@@ -126,15 +127,16 @@ export function RoadAhead({ profile, checkins }) {
         ))}
       </div>
       {bands.length > 0 && (
-        <div className="road-bands" aria-label="When side effects commonly appear">
+        <div className="road-bands" role="list" aria-label="When side effects commonly appear">
           {bands.map((b) => (
-            <div key={b.id} className={`band${b.now ? ' now' : ''}`} style={{ gridColumn: `${b.from + 1} / ${b.to + 2}` }} title={b.label}>
+            <div key={b.id} role="listitem" className={`band${b.now ? ' now' : ''}`} style={{ gridColumn: `${b.from + 1} / ${b.to + 2}` }} title={b.label}>
               {b.label}
+              <span className="sr-only">{`: ${b.from === 0 ? 'from before treatment' : `from week ${b.from}`}${b.open ? ' onward' : ` to week ${b.to}`}${b.now ? ', likely now' : ''}`}</span>
             </div>
           ))}
         </div>
       )}
-    </figure>
+    </div>
   );
 }
 
@@ -149,6 +151,12 @@ export function NoteCard({ note }) {
       {note.subtitle && <div className="sub">{note.subtitle}</div>}
       <p>{note.body}</p>
       {note.also?.length > 0 && <p className="small muted">Also common: {note.also.join('; ')}.</p>}
+      {note.confirm && (
+        <p className="small">
+          <strong>Check first: </strong>
+          {note.confirm}
+        </p>
+      )}
       {note.careTeam && (
         <div className="care">
           <strong>What to do: </strong>
@@ -195,7 +203,7 @@ export function ScoreRow({ row, pressed, onPress }) {
 // Progress ----------------------------------------------------------------------
 export function Steps({ steps, at }) {
   return (
-    <ol className="steps" aria-live="polite">
+    <ol className="steps">
       {steps.map((label, i) => (
         <li key={label} className={i < at ? 'done' : i === at ? 'active' : ''}>
           <span className="dot" aria-hidden="true" />
@@ -210,12 +218,20 @@ export function ErrorBox({ error, onRetry }) {
   if (!error) return null;
   return (
     <div className="error-box" role="alert">
-      <strong>{error.fix === 'photo' ? 'Let’s retake that photo' : error.fix === 'setup' ? 'The app needs setting up' : 'That didn’t work'}</strong>
+      <strong>
+        {error.fix === 'photo' ? 'Let’s retake that photo' : error.fix === 'ref' ? 'Try a different product photo' : error.fix === 'setup' ? 'The app needs setting up' : 'That didn’t work'}
+      </strong>
       <p>{error.message}</p>
-      {onRetry && (
-        <button className="btn secondary small" style={{ marginTop: 10 }} onClick={onRetry}>
-          {error.fix === 'photo' ? 'Retake photo' : 'Try again'}
-        </button>
+      {error.code === 'AccessCode' ? (
+        <a className="btn secondary small" style={{ marginTop: 10 }} href="#/settings">
+          Enter access code
+        </a>
+      ) : (
+        onRetry && (
+          <button className="btn secondary small" style={{ marginTop: 10 }} onClick={onRetry}>
+            {error.fix === 'photo' ? 'Retake photo' : 'Try again'}
+          </button>
+        )
       )}
     </div>
   );
@@ -224,21 +240,39 @@ export function ErrorBox({ error, onRetry }) {
 // Before / after -------------------------------------------------------------------
 export function CompareSlider({ before, after, beforeLabel = 'You today', afterLabel = 'Try-on' }) {
   const ref = useRef(null);
+  const drag = useRef(null);
   const [split, setSplit] = useState(50);
   const move = (clientX) => {
     const r = ref.current.getBoundingClientRect();
     setSplit(Math.max(0, Math.min(100, ((clientX - r.left) / r.width) * 100)));
   };
+  // Touch: only a clearly horizontal drag moves the split, so vertical swipes
+  // still scroll the page (touch-action: pan-y in CSS).
   return (
     <div
       ref={ref}
       className="compare"
       style={{ '--split': `${split}%` }}
       onPointerDown={(e) => {
-        e.currentTarget.setPointerCapture(e.pointerId);
+        drag.current = { x: e.clientX, y: e.clientY, active: e.pointerType === 'mouse' };
+        if (drag.current.active) {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          move(e.clientX);
+        }
+      }}
+      onPointerMove={(e) => {
+        const d = drag.current;
+        if (!d || !e.buttons) return;
+        if (!d.active) {
+          const dx = Math.abs(e.clientX - d.x);
+          if (dx < 8 || dx <= Math.abs(e.clientY - d.y)) return;
+          d.active = true;
+          e.currentTarget.setPointerCapture(e.pointerId);
+        }
         move(e.clientX);
       }}
-      onPointerMove={(e) => e.buttons && move(e.clientX)}
+      onPointerUp={() => (drag.current = null)}
+      onPointerCancel={() => (drag.current = null)}
     >
       <img src={before} alt={beforeLabel} />
       <img src={after} alt={afterLabel} className="after" />
@@ -271,19 +305,42 @@ const FACE_CROP = (() => {
   const w = (OVAL.rx * 2) / 0.78;
   return { x: 0.5 - w / 2, y: OVAL.cy - w / 2, w, h: w };
 })();
+const SD_MIN_SHORT = 480; // YouCam SD skin analysis: short side >= 480 px
+
+/**
+ * FACE_CROP, widened (centred on the oval, up to the whole box) just enough
+ * that the crop's short side reaches 480 px. A 720p webcam then gives a
+ * 480x640 crop with the face at ~70% of its width instead of a useless 429 px.
+ */
+export function faceCropFor(srcW, srcH, boxW, boxH, view = { zoom: 1 }) {
+  const s = Math.max(boxW / srcW, boxH / srcH) * (view.zoom ?? 1);
+  const w = Math.min(1, Math.max(FACE_CROP.w, (SD_MIN_SHORT * s) / boxW));
+  if (w === FACE_CROP.w) return FACE_CROP;
+  return { x: 0.5 - w / 2, y: Math.min(1 - w, Math.max(0, OVAL.cy - w / 2)), w, h: w };
+}
 
 function cropRectFor(mode) {
   return mode === 'face' ? FACE_CROP : { x: 0, y: 0, w: 1, h: 1 };
 }
 
 /** Maps a fractional box rect onto source pixels for an object-fit: cover image/video with pan & zoom. */
-function sourceRect(srcW, srcH, boxW, boxH, frac, view = { zoom: 1, tx: 0, ty: 0 }) {
+export function sourceRect(srcW, srcH, boxW, boxH, frac, view = { zoom: 1, tx: 0, ty: 0 }) {
   const s = Math.max(boxW / srcW, boxH / srcH) * view.zoom;
   const ox = (boxW - srcW * s) / 2 + view.tx;
   const oy = (boxH - srcH * s) / 2 + view.ty;
-  const x = (frac.x * boxW - ox) / s;
-  const y = (frac.y * boxH - oy) / s;
-  return { x: Math.max(0, x), y: Math.max(0, y), w: Math.min(srcW - Math.max(0, x), (frac.w * boxW) / s), h: Math.min(srcH - Math.max(0, y), (frac.h * boxH) / s) };
+  const x = Math.max(0, (frac.x * boxW - ox) / s);
+  const y = Math.max(0, (frac.y * boxH - oy) / s);
+  return { x, y, w: Math.min(srcW - x, (frac.w * boxW) / s), h: Math.min(srcH - y, (frac.h * boxH) / s) };
+}
+
+// The upload <img> is box-sized (object-fit: cover) and then translated and
+// scaled about its centre. It still covers the frame while |tx| and |ty| stay
+// within (zoom - 1) / 2 of the box, so the saved crop is exactly what was shown.
+function clampView(v, b) {
+  if (!b) return v;
+  const mx = ((v.zoom - 1) * b.clientWidth) / 2;
+  const my = ((v.zoom - 1) * b.clientHeight) / 2;
+  return { ...v, tx: Math.max(-mx, Math.min(mx, v.tx)), ty: Math.max(-my, Math.min(my, v.ty)) };
 }
 
 function Guide({ mode }) {
@@ -295,6 +352,7 @@ function Guide({ mode }) {
       </svg>
     );
   }
+  if (mode === 'product') return null;
   return (
     <svg className="guide" viewBox="0 0 300 400" preserveAspectRatio="none" aria-hidden="true">
       <defs>
@@ -311,44 +369,71 @@ function Guide({ mode }) {
 
 /**
  * Camera or upload, with an alignment guide, live light check and optional
- * ghost of the baseline photo. Calls onCapture({ blob, width, height, dataUrl, brightness }).
+ * ghost of the baseline photo. Calls onCapture({ blob, width, height, dataUrl, brightness, source }).
  */
 export function Capture({ mode = 'face', ghost, maxLong = 2560, onCapture, cta = 'Take photo' }) {
   const box = useRef(null);
   const video = useRef(null);
   const fileInput = useRef(null);
+  const streamRef = useRef(null);
+  const starting = useRef(false);
+  const alive = useRef(true);
   const [state, setState] = useState('choose');
+  const [camPending, setCamPending] = useState(false);
   const [camError, setCamError] = useState('');
   const [light, setLight] = useState(null);
   const [upload, setUpload] = useState(null);
   const [view, setView] = useState({ zoom: 1, tx: 0, ty: 0 });
+  const [faceFrac, setFaceFrac] = useState(FACE_CROP);
   const [showGhost, setShowGhost] = useState(Boolean(ghost));
   const [busy, setBusy] = useState(false);
   const drag = useRef(null);
-  const frac = cropRectFor(mode);
-
-  useEffect(() => () => stopCamera(), []);
+  const frac = mode === 'face' ? faceFrac : cropRectFor(mode);
 
   function stopCamera() {
-    const stream = video.current?.srcObject;
-    stream?.getTracks?.().forEach((t) => t.stop());
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (video.current) video.current.srcObject = null;
   }
 
+  // The stream lives in a ref, so it is stopped on unmount even after React
+  // has cleared the <video> ref.
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      stopCamera();
+    };
+  }, []);
+
   async function startCamera() {
+    if (starting.current || streamRef.current) return;
+    starting.current = true;
+    setCamPending(true);
     setCamError('');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1440 } }, audio: false });
+      if (!alive.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      streamRef.current = stream;
       setState('camera');
-      requestAnimationFrame(() => {
-        if (video.current) {
-          video.current.srcObject = stream;
-          video.current.play().catch(() => {});
-        }
-      });
     } catch (err) {
-      setCamError(err?.name === 'NotAllowedError' ? 'Camera access was blocked. You can allow it in your browser settings, or upload a photo instead.' : 'No camera is available here. Upload a photo instead.');
+      if (alive.current) setCamError(err?.name === 'NotAllowedError' ? 'Camera access was blocked. You can allow it in your browser settings, or upload a photo instead.' : 'No camera is available here. Upload a photo instead.');
+    } finally {
+      starting.current = false;
+      if (alive.current) setCamPending(false);
     }
   }
+
+  // Attach the stream once React has rendered the <video>.
+  useEffect(() => {
+    if (state === 'camera' && video.current && streamRef.current) {
+      video.current.srcObject = streamRef.current;
+      video.current.play().catch(() => {});
+    }
+  }, [state]);
 
   // Live light reading while the camera is open.
   useEffect(() => {
@@ -368,7 +453,8 @@ export function Capture({ mode = 'face', ghost, maxLong = 2560, onCapture, cta =
     const b = box.current;
     if (!v?.videoWidth) return;
     setBusy(true);
-    const rect = sourceRect(v.videoWidth, v.videoHeight, b.clientWidth, b.clientHeight, frac);
+    const useFrac = mode === 'face' ? faceCropFor(v.videoWidth, v.videoHeight, b.clientWidth, b.clientHeight) : frac;
+    const rect = sourceRect(v.videoWidth, v.videoHeight, b.clientWidth, b.clientHeight, useFrac);
     const faceR = sourceRect(v.videoWidth, v.videoHeight, b.clientWidth, b.clientHeight, FACE_CROP);
     const out = await cropToJpeg(v, rect, { maxLong });
     const brightness = faceBrightness(v, faceR);
@@ -397,7 +483,8 @@ export function Capture({ mode = 'face', ghost, maxLong = 2560, onCapture, cta =
     setBusy(true);
     const w = upload.naturalWidth;
     const h = upload.naturalHeight;
-    const rect = sourceRect(w, h, b.clientWidth, b.clientHeight, frac, view);
+    const useFrac = mode === 'face' ? faceCropFor(w, h, b.clientWidth, b.clientHeight, view) : frac;
+    const rect = sourceRect(w, h, b.clientWidth, b.clientHeight, useFrac, view);
     const faceR = sourceRect(w, h, b.clientWidth, b.clientHeight, FACE_CROP, view);
     const out = await cropToJpeg(upload, rect, { maxLong });
     setBusy(false);
@@ -411,30 +498,42 @@ export function Capture({ mode = 'face', ghost, maxLong = 2560, onCapture, cta =
     <div className="stack">
       <div
         ref={box}
-        className="capture"
+        className={`capture${state === 'frame' ? ' framing' : ''}`}
         onPointerDown={(e) => {
           if (state !== 'frame') return;
           e.currentTarget.setPointerCapture(e.pointerId);
           drag.current = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty };
         }}
         onPointerMove={(e) => {
-          if (state !== 'frame' || !drag.current) return;
-          setView((v) => ({ ...v, tx: drag.current.tx + e.clientX - drag.current.x, ty: drag.current.ty + e.clientY - drag.current.y }));
+          const d = drag.current;
+          if (state !== 'frame' || !d) return;
+          const tx = d.tx + e.clientX - d.x;
+          const ty = d.ty + e.clientY - d.y;
+          setView((v) => clampView({ ...v, tx, ty }, box.current));
         }}
         onPointerUp={() => (drag.current = null)}
+        onPointerCancel={() => (drag.current = null)}
       >
-        {state === 'camera' && <video ref={video} className="mirror" playsInline muted />}
+        {state === 'camera' && (
+          <video
+            ref={video}
+            className="mirror"
+            playsInline
+            muted
+            onLoadedMetadata={(e) => box.current && mode === 'face' && setFaceFrac(faceCropFor(e.currentTarget.videoWidth, e.currentTarget.videoHeight, box.current.clientWidth, box.current.clientHeight))}
+          />
+        )}
         {state === 'frame' && upload && (
           <img className="frame-img" src={upload.src} alt="Your photo" draggable="false" style={{ transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.zoom})`, objectFit: 'cover' }} />
         )}
         {state === 'choose' && (
           <div className="frame-img" style={{ display: 'grid', placeItems: 'center', color: '#d9d2f0', padding: 24, textAlign: 'center' }}>
-            <p>{mode === 'face' ? 'Your face will go in the oval.' : 'Head and shoulders, hair down.'}</p>
+            <p>{mode === 'face' ? 'Your face will go in the oval.' : mode === 'portrait' ? 'Head and shoulders, hair down.' : 'One item, filling most of the picture.'}</p>
           </div>
         )}
         {ghost && showGhost && state !== 'choose' && <img className={`ghost${state === 'camera' ? ' mirror' : ''}`} src={ghost} alt="" style={ghostStyle} />}
         <Guide mode={mode} />
-        {state === 'camera' && (
+        {state === 'camera' && mode !== 'product' && (
           <div className="light" aria-live="polite">
             <span className={`light-pill ${lightInfo.tone}`}>{lightInfo.text}</span>
           </div>
@@ -443,8 +542,20 @@ export function Capture({ mode = 'face', ghost, maxLong = 2560, onCapture, cta =
 
       {state === 'frame' && (
         <label className="field">
-          <span>Zoom so your {mode === 'face' ? 'face fills the oval' : 'head and shoulders fit the outline'}, then drag to centre</span>
-          <input type="range" min="1" max="3" step="0.01" value={view.zoom} onChange={(e) => setView((v) => ({ ...v, zoom: Number(e.target.value) }))} />
+          <span>
+            {mode === 'face' ? 'Zoom so your face fills the oval, then drag to centre' : mode === 'portrait' ? 'Zoom so your head and shoulders fit the outline, then drag to centre' : 'Zoom and drag so the item fills the frame'}
+          </span>
+          <input
+            type="range"
+            min="1"
+            max="3"
+            step="0.01"
+            value={view.zoom}
+            onChange={(e) => {
+              const zoom = Number(e.target.value);
+              setView((v) => clampView({ ...v, zoom }, box.current));
+            }}
+          />
         </label>
       )}
       {ghost && state !== 'choose' && (
@@ -468,7 +579,7 @@ export function Capture({ mode = 'face', ghost, maxLong = 2560, onCapture, cta =
           </button>
         )}
         {state !== 'camera' && (
-          <button className={`btn ${state === 'choose' ? 'primary' : 'secondary'}`} style={{ flex: 1 }} onClick={startCamera}>
+          <button className={`btn ${state === 'choose' ? 'primary' : 'secondary'}`} style={{ flex: 1 }} onClick={startCamera} disabled={camPending}>
             <Icon name="camera" />
             Use camera
           </button>
@@ -477,7 +588,7 @@ export function Capture({ mode = 'face', ghost, maxLong = 2560, onCapture, cta =
           <Icon name="upload" />
           {state === 'frame' ? 'Choose another' : 'Upload photo'}
         </button>
-        <input ref={fileInput} type="file" accept="image/jpeg,image/png" hidden onChange={onFile} />
+        <input ref={fileInput} type="file" accept="image/*" hidden onChange={onFile} />
       </div>
     </div>
   );

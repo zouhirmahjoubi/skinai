@@ -24,7 +24,7 @@ export default function Result({ param }) {
   const mask = selected ? current.scores?.[selected]?.mask : null;
   const base = mask && current.baseImage ? current.baseImage : current.photo;
   const hasMasks = Object.values(current.scores || {}).some((s) => s?.mask);
-  const hasCall = notes.some((n) => n.level === 'call');
+  const hasCall = notes.some((n) => n.level === 'call' || n.confirm);
 
   async function remove() {
     if (!window.confirm('Delete this check-in from your journal?')) return;
@@ -48,9 +48,14 @@ export default function Result({ param }) {
           <NoteCard key={n.id} note={n} />
         ))}
         {hasCall && (
-          <p className="fine" style={{ marginTop: 10 }}>
-            Call now rather than waiting if you have: {RED_FLAGS.slice(0, 2).join('; ').toLowerCase()}.
-          </p>
+          <div className="fine" style={{ marginTop: 10 }}>
+            <p>Call your care team now rather than waiting if you have any of these:</p>
+            <ul className="list-plain" style={{ marginTop: 6 }}>
+              {RED_FLAGS.map((f) => (
+                <li key={f}>{f}</li>
+              ))}
+            </ul>
+          </div>
         )}
         <div className="row" style={{ marginTop: 12 }}>
           <a className="btn primary" style={{ flex: 1 }} href="#/shelf">What to use and avoid</a>
@@ -83,6 +88,7 @@ export default function Result({ param }) {
           These are YouCam’s raw model scores, which show change more faithfully than its rounded-up display scores. Changes smaller than 6 points are within normal photo-to-photo variation and show as steady.
           {comparison.baseline ? ` Compared with your baseline from ${new Date(`${comparison.baseline.date}T12:00:00`).toLocaleDateString()}.` : ''}
         </p>
+        {current.deletedFromYouCam && <p className="fine">YouCam was asked to delete this photo and its results after analysis; your copy stays on this device.</p>}
       </section>
 
       <button className="btn quiet" onClick={remove}>Delete this check-in</button>

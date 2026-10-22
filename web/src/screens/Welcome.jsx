@@ -4,6 +4,9 @@ import { Logo } from '../components.jsx';
 import { TREATMENTS, TREATMENT_KEYS } from '../../../core/treatments.js';
 import { today } from '../lib/db.js';
 
+const isIOS = typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+const standalone = typeof window !== 'undefined' && (window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true);
+
 export default function Welcome() {
   const { saveProfile, loadSample, server } = useStore();
   const [step, setStep] = useState(0);
@@ -34,12 +37,13 @@ export default function Welcome() {
         <div className="stack">
           <h1>Treatment changes how your skin, hair and brows look. Ahead helps you stay a step ahead of it.</h1>
           <p className="muted">
-            A weekly selfie shows which changes are real and which are just the camera. Ahead explains them in light of your treatment, tells you when to call your care team, and picks gentle products. It also saves your own hair and brows so you can match or recreate them later.
+            Before your hair changes, save how your hair and brows look and try wigs, brows and hats on yourself. Each week, a selfie shows which skin changes are real and which are just the camera, explained for your treatment, with a clear prompt when to call your care team and a shelf of products that are safe right now.
           </p>
         </div>
         <div className="sheet tint stack">
           <h3>Private by design</h3>
-          <p>Your photos and history stay on this device. Photos are sent to the YouCam analysis service only when you ask for a check-in or try-on, and Ahead keeps no copy on its server.</p>
+          <p>Your photos and history stay on this device, not on our server. Photos go to the YouCam analysis service only when you ask for a check-in or try-on.</p>
+          {isIOS && !standalone && <p className="small">On iPhone, Safari can clear websites you haven’t opened for a week. Add Ahead to your Home Screen first (Share, then Add to Home Screen) and set it up from there.</p>}
         </div>
         <div className="stack">
           <button className="btn primary block" onClick={() => setStep(1)}>Set up Ahead</button>
@@ -112,7 +116,7 @@ export default function Welcome() {
       <ul className="list-plain stack">
         <li>Ahead is a journal and a guide, not a diagnosis. Your care team always has the final word, and the safety signs on the Today screen mean call them now.</li>
         <li>Skin scores come from the YouCam AI Skin Analysis service. One photo can be off, so Ahead only flags changes larger than normal photo-to-photo variation.</li>
-        <li>Photos you analyse are uploaded to YouCam (Perfect Corp.), which keeps uploaded files for a limited retention period. Ahead’s server doesn’t store them.</li>
+        <li>Photos you analyse are uploaded to YouCam (Perfect Corp.). Ahead asks YouCam to delete each check-in photo and its results as soon as they arrive; try-on photos are deleted by YouCam automatically within its retention period (up to 30 days). Ahead’s server doesn’t store photos.</li>
       </ul>
       <label className="choice">
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />

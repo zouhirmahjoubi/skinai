@@ -8,9 +8,16 @@ export class ApiError extends Error {
   }
 }
 
+// The access code can come from the link judges are given (?code=...), so
+// nobody has to find Settings first.
 let accessCode = '';
 try {
-  accessCode = localStorage.getItem('ahead.accessCode') || '';
+  const fromUrl = (new URLSearchParams(window.location.search).get('code') || '').trim();
+  if (fromUrl) {
+    localStorage.setItem('ahead.accessCode', fromUrl);
+    window.history.replaceState(null, '', window.location.pathname + window.location.hash);
+  }
+  accessCode = fromUrl || localStorage.getItem('ahead.accessCode') || '';
 } catch {
   /* storage blocked */
 }
@@ -58,6 +65,7 @@ export const api = {
   print: (fileId) => request('/print', { method: 'POST', json: { fileId } }),
   hairTemplates: () => request('/hair/templates'),
   hairTryOn: (opts) => request('/hair/try-on', { method: 'POST', json: opts }),
+  hatTryOn: (opts) => request('/hat/try-on', { method: 'POST', json: opts }),
   browPatterns: () => request('/brows/patterns'),
   browTryOn: (opts) => request('/brows/try-on', { method: 'POST', json: opts }),
   units: () => request('/units'),

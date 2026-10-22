@@ -2,14 +2,16 @@ import { useStore } from '../lib/store.jsx';
 import { TopBar, Icon, Sparkline } from '../components.jsx';
 import { CONCERNS, displayScore } from '../../../core/concerns.js';
 import { treatmentPhase } from '../../../core/treatments.js';
+import { sameSeries } from '../../../core/trends.js';
 
 const fmt = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
 
 export default function Skin() {
   const { checkins, profile, server } = useStore();
   const list = [...checkins].reverse();
-  const tier = checkins[checkins.length - 1]?.tier;
-  const sameTier = checkins.filter((c) => c.tier === tier);
+  const real = checkins.filter((c) => !c.sample);
+  const latest = (real.length ? real : checkins)[(real.length ? real : checkins).length - 1];
+  const sameTier = latest ? checkins.filter((c) => sameSeries(c, latest)) : [];
 
   return (
     <div className="stack-lg">

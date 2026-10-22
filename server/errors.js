@@ -1,5 +1,6 @@
 // YouCam error codes mapped to plain-language guidance. `fix` says who can fix
-// it: "photo" means retake, "service" means try later, "setup" means operator.
+// it: "photo" means retake, "ref" means pick another wig/hat photo, "service"
+// means try later, "setup" means the operator must act.
 
 export class YouCamError extends Error {
   constructor(message, code, status = 502, detail) {
@@ -10,6 +11,8 @@ export class YouCamError extends Error {
     this.detail = detail;
   }
 }
+
+const HAIR_GONE = 'Hair try-on needs your own hair to show in the photo. If your hair is already short or has thinned, upload a head-and-shoulders photo of you from before treatment.';
 
 const PHOTO = {
   error_no_face: 'We could not find a face. Face the camera in good light and try again.',
@@ -31,19 +34,24 @@ const PHOTO = {
   error_face_parsing: 'We could not read your face clearly. Try a sharper photo with even light.',
   error_no_shoulder: 'For hair try-on, step back a little so your shoulders are in the photo.',
   error_insufficient_landmarks: 'For hair try-on, keep your face and shoulders clearly in view.',
-  error_hair_too_short: 'Hair try-on needs some visible hair in the photo. Try a template instead of a reference photo.',
+  error_hair_too_short: HAIR_GONE,
+  error_bald_image: HAIR_GONE,
   error_nsfw_content_detected: 'This photo was rejected by the safety filter.',
   error_decode_image: 'The photo could not be read. Try another one.',
-  error_download_image: 'YouCam could not download that reference image. Check the link is public.',
+  error_download_image: 'YouCam could not download that image. Check the link is public.',
   InvalidFileId: 'This photo has expired on the analysis service. Please take it again.',
 };
 
 const SERVICE = {
-  CreditInsufficiency: 'The YouCam account behind this app is out of units.',
+  CreditInsufficiency: 'Live analysis is paused: this demo’s YouCam units are used up. The sample journey on Today still works.',
   InvalidApiKey: 'The YouCam API key is missing or invalid.',
+  InactiveApiKey: 'The YouCam API key has been deactivated.',
+  ExpiredApiKey: 'The YouCam API key has expired.',
+  InvalidAccessToken: 'The YouCam API key is missing or invalid.',
   InvalidAuthentication: 'The YouCam API key is missing or invalid.',
   RateLimitExceeded: 'Too many requests right now. Please wait a minute.',
   Timeout: 'The analysis took too long. Please try again.',
+  TaskTimeout: 'The analysis took too long. Please try again.',
 };
 
 export function explain(code = '') {
@@ -52,7 +60,7 @@ export function explain(code = '') {
     return { fix: 'photo', message: 'Keep your head level and look straight at the camera.' };
   }
   if (SERVICE[code]) {
-    const fix = code === 'CreditInsufficiency' || /Auth|ApiKey/.test(code) ? 'setup' : 'service';
+    const fix = code === 'CreditInsufficiency' || /Auth|ApiKey|AccessToken/.test(code) ? 'setup' : 'service';
     return { fix, message: SERVICE[code] };
   }
   if (code === 'unknown_internal_error') {

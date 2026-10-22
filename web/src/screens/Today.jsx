@@ -17,12 +17,22 @@ export default function Today() {
   const phase = treatmentPhase(profile.startDate);
   const treatments = profile.treatments || [];
   const expectations = expectationsFor(treatments, profile.startDate).filter((e) => e.timing !== 'later' || phase.phase === 'before');
-  const last = checkins[checkins.length - 1];
+  const real = checkins.filter((c) => !c.sample);
+  const last = (real.length ? real : checkins)[(real.length ? real : checkins).length - 1];
   const due = !last || daysSince(last.date) >= 6;
   const urgent = notes.filter((n) => n.level === 'call' || n.level === 'watch');
   const losesHair = treatments.includes('chemo');
 
-  const headline = phase.phase === 'before' ? (phase.daysUntil === 1 ? 'Treatment starts tomorrow' : `Treatment starts in ${phase.daysUntil} days`) : `Week ${phase.week}`;
+  const headline =
+    phase.phase === 'before'
+      ? phase.daysUntil === 1
+        ? 'Treatment starts tomorrow'
+        : `Treatment starts in ${phase.daysUntil} days`
+      : phase.phase === 'unknown'
+        ? 'Set your start date'
+        : `Week ${phase.week}`;
+  const nextCheckin = last ? new Date(`${last.date}T12:00:00`) : null;
+  nextCheckin?.setDate(nextCheckin.getDate() + 7);
   const nouns = treatments.map((t) => TREATMENTS[t].noun);
   const treatmentList = nouns.length ? `${nouns.slice(0, -1).join(', ')}${nouns.length > 1 ? ' and ' : ''}${nouns[nouns.length - 1]}`.replace(/^./, (c) => c.toUpperCase()) : 'No treatment type chosen';
 
@@ -49,7 +59,7 @@ export default function Today() {
           <h1 id="where" className="hero-week">{headline}</h1>
           <p className="muted" style={{ marginTop: 8 }}>
             {treatmentList}
-            {phase.phase === 'during' ? `, since ${fmt(profile.startDate)}` : `, from ${fmt(profile.startDate)}`}
+            {profile.startDate ? (phase.phase === 'during' ? `, since ${fmt(profile.startDate)}` : `, from ${fmt(profile.startDate)}`) : ''}
           </p>
         </div>
         <RoadAhead profile={profile} checkins={checkins} />
@@ -70,7 +80,7 @@ export default function Today() {
         ) : (
           <>
             <h2>You’re up to date</h2>
-            <p>Next check-in around {fmt(new Date(new Date(`${last.date}T12:00:00`).getTime() + 7 * 86400000).toISOString().slice(0, 10))}. Check in sooner if your skin changes.</p>
+            <p>Next check-in around {nextCheckin.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}. Check in sooner if your skin changes.</p>
           </>
         )}
         <a className={`btn ${due ? 'primary' : 'secondary'} block`} href="#/checkin">
@@ -96,6 +106,7 @@ export default function Today() {
         <section className="sheet tint stack">
           <h2>Save your hair and brows while they’re yours</h2>
           <p>Wig specialists suggest choosing a wig before hair changes, so it can be matched to your colour and style. One selfie records your hair colour, brow shape and face shape.</p>
+          {phase.phase !== 'during' && <p className="small">Hoping to keep some hair? Before your first infusion, ask your team whether scalp cooling (a cold cap) could work with your treatment.</p>}
           <a className="btn primary block" href="#/look">Make my Hair & Brow Print</a>
         </section>
       )}
@@ -131,6 +142,17 @@ export default function Today() {
         </section>
       )}
 
+      <details className="sheet" open>
+        <summary style={{ cursor: 'pointer', fontWeight: 700 }}>
+          <span style={{ color: 'var(--call)' }}>Call your care team now if you notice…</span>
+        </summary>
+        <ul className="list-plain" style={{ marginTop: 12 }}>
+          {RED_FLAGS.map((f) => (
+            <li key={f}>{f}</li>
+          ))}
+        </ul>
+        <p className="fine" style={{ marginTop: 10 }}>Don’t wait for a check-in. Use the number your treatment centre gave you; in an emergency call your local emergency number.</p>
+      </details>
       <section className="sheet stack">
         <div className="row spread">
           <h2>Care-team summary</h2>
@@ -142,17 +164,6 @@ export default function Today() {
         </a>
       </section>
 
-      <details className="sheet">
-        <summary style={{ cursor: 'pointer', fontWeight: 700 }}>
-          <span style={{ color: 'var(--call)' }}>Call your care team now if you notice…</span>
-        </summary>
-        <ul className="list-plain" style={{ marginTop: 12 }}>
-          {RED_FLAGS.map((f) => (
-            <li key={f}>{f}</li>
-          ))}
-        </ul>
-        <p className="fine" style={{ marginTop: 10 }}>Don’t wait for a check-in. Use the number your treatment centre gave you; in an emergency call your local emergency number.</p>
-      </details>
     </div>
   );
 }

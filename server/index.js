@@ -17,10 +17,21 @@ const apiKey = (process.env.YOUCAM_API_KEY || '').trim();
 const forceDemo = process.env.DEMO_MODE === '1';
 const features = apiKey && !forceDemo ? createLiveFeatures(createYouCamClient({ apiKey })) : createDemoFeatures();
 
+// An empty or invalid value falls back to the default instead of switching a limit off.
+const envNumber = (name, fallback) => {
+  const raw = process.env[name];
+  const n = Number(raw);
+  return raw !== undefined && raw.trim() !== '' && Number.isFinite(n) && n >= 0 ? n : fallback;
+};
+const accessCode = (process.env.APP_ACCESS_CODE || '').trim();
+
 const app = createApp({
   features,
-  accessCode: (process.env.APP_ACCESS_CODE || '').trim(),
-  perIpDailyLimit: Number(process.env.PER_IP_DAILY_LIMIT ?? 40),
+  accessCode,
+  perIpDailyUnits: envNumber('PER_IP_DAILY_UNITS', 100),
+  dailyUnitBudget: envNumber('DAILY_UNIT_BUDGET', 300),
+  trustProxy: envNumber('TRUST_PROXY', 1),
+  csp: !dev,
 });
 
 if (dev) {
@@ -41,12 +52,22 @@ const port = Number(process.env.PORT || 8787);
 app.listen(port, () => {
   console.log(`Ahead running at http://localhost:${port} (${features.mode} mode${dev ? ', dev' : ''})`);
   if (features.mode === 'demo') console.log('No YOUCAM_API_KEY set: using demo results. Add a key to .env for live analysis.');
+  if (features.mode === 'live') {
+    if (!accessCode) console.warn('APP_ACCESS_CODE is not set: anyone with the link can spend YouCam units.');
+    features
+      .units()
+      .then((u) => console.log(`YouCam key OK (${u} units left)`))
+      .catch((e) => console.error(`YouCam key check FAILED (${e.code}): live calls will fail until YOUCAM_API_KEY is fixed`));
+  }
 });
 
 function loadDotEnv(file) {
   if (!fs.existsSync(file)) return;
   for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
     const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
-    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^(['"])(.*)\1$/, '$2');
+    if (!m || process.env[m[1]] !== undefined) continue;
+    let v = m[2];
+    if (!/^['"]/.test(v)) v = v.replace(/\s+#.*$/, '');
+    process.env[m[1]] = v.replace(/^(['"])(.*)\1$/, '$2');
   }
 }

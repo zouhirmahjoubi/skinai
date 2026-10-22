@@ -1,5 +1,6 @@
-// Thin YouCam API client: File API upload, async task start + poll, templates,
-// unit balance. Server-side only; the API key never reaches the browser.
+// Thin YouCam API client: File API upload, async task start + poll, task
+// deletion, templates, unit balance. Server-side only; the API key never
+// reaches the browser.
 //
 // Request/response shapes follow the published OpenAPI documents
 // (docs.perfectcorp.com/reference/*) for the versions listed in VERSIONS.
@@ -15,9 +16,20 @@ export const VERSIONS = {
   'skin-tone-analysis': 'v2.0',
   'face-attr-analysis': 'v2.0',
   'makeup-vto': 'v2.0',
+  hat: 'v2.0',
 };
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Per-request cap. Node's fetch otherwise waits minutes for a stalled socket.
+const REQUEST_TIMEOUT_MS = 30_000;
+const withTimeout = (init = {}) => ({ ...init, signal: init.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+
+// Most documented 401/429 bodies carry only prose in `error`.
+const CODE_BY_STATUS = { 401: 'InvalidApiKey', 429: 'RateLimitExceeded' };
+
+// Worth another poll: the task is still alive on YouCam and is billed even if we stop.
+const isTransient = (err) => err?.code === 'NetworkError' || [429, 502, 503, 504].includes(err?.status);
 
 export function createYouCamClient({ apiKey, baseUrl = BASE_URL, fetchImpl = fetch, sleep = wait, pollTimeoutMs = 150_000 } = {}) {
   if (!apiKey) throw new Error('createYouCamClient needs an apiKey');
@@ -26,13 +38,13 @@ export function createYouCamClient({ apiKey, baseUrl = BASE_URL, fetchImpl = fet
     let res;
     try {
       res = await fetchImpl(`${baseUrl}${path}`, {
-        ...init,
+        ...withTimeout(init),
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', ...init.headers },
       });
     } catch (err) {
       throw new YouCamError(`Could not reach YouCam: ${err.message}`, 'NetworkError', 502);
     }
-    const text = await res.text();
+    const text = await res.text().catch(() => '');
     let body = null;
     try {
       body = text ? JSON.parse(text) : null;
@@ -40,8 +52,9 @@ export function createYouCamClient({ apiKey, baseUrl = BASE_URL, fetchImpl = fet
       /* non-JSON error page */
     }
     if (!res.ok || (body && body.status >= 400)) {
-      const code = body?.error_code || body?.error || `HTTP_${res.status}`;
-      throw new YouCamError(body?.error || body?.message || res.statusText || 'YouCam request failed', code, res.status >= 400 ? res.status : 502);
+      const st = body?.status >= 400 ? body.status : res.status;
+      const code = body?.error_code || CODE_BY_STATUS[st] || body?.error || `HTTP_${res.status}`;
+      throw new YouCamError(body?.error || body?.message || res.statusText || 'YouCam request failed', code, st >= 400 ? st : 502);
     }
     return body?.data ?? body;
   }
@@ -55,11 +68,17 @@ export function createYouCamClient({ apiKey, baseUrl = BASE_URL, fetchImpl = fet
     const file = data?.files?.[0];
     const put = file?.requests?.[0];
     if (!file?.file_id || !put?.url) throw new YouCamError('File API returned no upload URL', 'UploadFailed');
-    const res = await fetchImpl(put.url, { method: put.method || 'PUT', headers: put.headers || { 'Content-Type': contentType }, body: buffer });
+    let res;
+    try {
+      res = await fetchImpl(put.url, withTimeout({ method: put.method || 'PUT', headers: put.headers || { 'Content-Type': contentType }, body: buffer }));
+    } catch (err) {
+      throw new YouCamError(`Uploading to storage failed: ${err.message}`, 'UploadFailed');
+    }
     if (!res.ok) throw new YouCamError(`Uploading to storage failed (${res.status})`, 'UploadFailed');
     return file.file_id;
   }
 
+  // Never retried: a second POST would start (and bill) a second task.
   async function startTask(feature, body) {
     const v = VERSIONS[feature] || 'v2.0';
     const data = await call(`/s2s/${v}/task/${feature}`, { method: 'POST', body: JSON.stringify(body) });
@@ -68,17 +87,29 @@ export function createYouCamClient({ apiKey, baseUrl = BASE_URL, fetchImpl = fet
   }
 
   // Polling is mandatory: an abandoned task still consumes units and later
-  // reads as InvalidTaskId. Back off gently; results stay available 24h.
+  // reads as InvalidTaskId. Back off gently; a failed poll is retried, since
+  // it does not cancel the task.
   async function pollTask(feature, taskId) {
     const v = VERSIONS[feature] || 'v2.0';
     const deadline = Date.now() + pollTimeoutMs;
     let delay = 1500;
+    let strikes = 0;
     while (Date.now() < deadline) {
-      const data = await call(`/s2s/${v}/task/${feature}/${encodeURIComponent(taskId)}`);
+      let data;
+      try {
+        data = await call(`/s2s/${v}/task/${feature}/${encodeURIComponent(taskId)}`);
+        strikes = 0;
+      } catch (err) {
+        if (!isTransient(err) || ++strikes > 4) throw err;
+        await sleep(1000 * strikes);
+        continue;
+      }
       if (data?.task_status === 'success') return data.results;
       if (data?.task_status === 'error') {
         const code = data.error || 'TaskFailed';
-        throw new YouCamError(data.error_message || code, code, 422);
+        const err = new YouCamError(data.error_message || code, code, 422);
+        err.taskId = taskId;
+        throw err;
       }
       const hinted = Number(data?.polling_interval);
       await sleep(hinted > 0 ? Math.min(Math.max(hinted * 1000, 1000), 10_000) : delay);
@@ -90,6 +121,20 @@ export function createYouCamClient({ apiKey, baseUrl = BASE_URL, fetchImpl = fet
   async function runTask(feature, body) {
     const taskId = await startTask(feature, body);
     return pollTask(feature, taskId);
+  }
+
+  async function runTaskWithId(feature, body) {
+    const taskId = await startTask(feature, body);
+    return { taskId, results: await pollTask(feature, taskId) };
+  }
+
+  /** Deletes a finished task with its input files and outputs (POST /s2s/v2.0/task/delete). */
+  async function deleteTask(taskId) {
+    try {
+      await call('/s2s/v2.0/task/delete', { method: 'POST', body: JSON.stringify({ task_id: taskId }) });
+    } catch (err) {
+      if (err.code !== 'InvalidTaskId') throw err;
+    }
   }
 
   /** Pages through a template list (free GET). */
@@ -111,15 +156,23 @@ export function createYouCamClient({ apiKey, baseUrl = BASE_URL, fetchImpl = fet
   async function unitBalance() {
     const data = await call('/s2s/v1.0/client/credit');
     const rows = Array.isArray(data) ? data : data?.results || [];
-    return rows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+    // amount_dec is the current field (two decimals); amount is a deprecated integer.
+    const total = rows.reduce((sum, r) => sum + (Number(r.amount_dec ?? r.amount) || 0), 0);
+    return Math.round(total * 100) / 100;
   }
 
-  return { call, uploadImage, startTask, pollTask, runTask, listTemplates, unitBalance };
+  return { call, uploadImage, startTask, pollTask, runTask, runTaskWithId, deleteTask, listTemplates, unitBalance };
 }
 
 /** Downloads a (short-lived, signed) result URL so it can be handed to the browser. */
 export async function downloadAsDataUrl(url, fetchImpl = fetch) {
-  const res = await fetchImpl(url);
+  if (!/^https:\/\//i.test(String(url))) throw new YouCamError('Unexpected result URL', 'DownloadFailed');
+  let res;
+  try {
+    res = await fetchImpl(url, withTimeout());
+  } catch (err) {
+    throw new YouCamError(`Could not download result: ${err.message}`, 'DownloadFailed');
+  }
   if (!res.ok) throw new YouCamError(`Could not download result (${res.status})`, 'DownloadFailed');
   const buf = Buffer.from(await res.arrayBuffer());
   let type = (res.headers.get('content-type') || '').split(';')[0];

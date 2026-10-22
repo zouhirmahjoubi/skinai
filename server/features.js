@@ -9,6 +9,9 @@ import { downloadAsDataUrl } from './youcam.js';
 
 const EYEBROW_CATALOG_URL = 'https://plugins-media.makeupar.com/wcm-saas/patterns/eyebrows.json';
 const TEMPLATE_TTL_MS = 6 * 60 * 60 * 1000;
+// Hat VTO restyles outfit and background around the hat; "warm & cozy" suits
+// the soft caps and beanies people wear during hair loss.
+const HAT_STYLE = 'style_warm_cozy';
 
 export function createLiveFeatures(client, { fetchImpl = fetch } = {}) {
   let templateCache = null;
@@ -24,13 +27,20 @@ export function createLiveFeatures(client, { fetchImpl = fetch } = {}) {
     },
 
     async analyzeSkin({ fileId, tier }) {
-      const results = await client.runTask('skin-analysis', {
-        src_file_id: fileId,
-        dst_actions: dstActionsFor(tier),
-        format: 'json',
-        // Raw masks (PNG with alpha) let the app blend each concern itself.
-        miniserver_args: { enable_mask_overlay: false },
-      });
+      let taskId;
+      let results;
+      try {
+        ({ taskId, results } = await client.runTaskWithId('skin-analysis', {
+          src_file_id: fileId,
+          dst_actions: dstActionsFor(tier),
+          format: 'json',
+          // Raw masks (PNG with alpha) let the app blend each concern itself.
+          miniserver_args: { enable_mask_overlay: false },
+        }));
+      } catch (err) {
+        if (err.taskId) await client.deleteTask(err.taskId).catch(() => {});
+        throw err;
+      }
       const norm = normalizeSkinResult(results);
       // Signed result links expire after ~2 hours, so fetch everything now.
       const keys = Object.keys(norm.scores);
@@ -40,7 +50,10 @@ export function createLiveFeatures(client, { fetchImpl = fetch } = {}) {
         const { maskUrl, ...rest } = norm.scores[k];
         scores[k] = { ...rest, mask: masks[i] };
       });
-      return { tier, scores, overall: norm.overall, skinAge: norm.skinAge, baseImage: base };
+      // The check-in photo is never reused, so ask YouCam to delete the task,
+      // its input photo and outputs now (best effort; otherwise they expire).
+      const deleted = await client.deleteTask(taskId).then(() => true, () => false);
+      return { tier, scores, overall: norm.overall, skinAge: norm.skinAge, baseImage: base, deleted };
     },
 
     // One selfie, two analyses in parallel: colours (hair, brows, skin) and
@@ -62,11 +75,20 @@ export function createLiveFeatures(client, { fetchImpl = fetch } = {}) {
       };
     },
 
-    async hairTryOn({ fileId, templateId, refUrl, keepColor }) {
-      const body = { src_file_id: fileId, hair_color: keepColor ? 'src' : 'ref' };
-      if (templateId) body.template_id = templateId;
-      else body.ref_file_url = refUrl;
+    // hair_color is only defined for templates (and only honoured by those
+    // with keep_users_color); a reference photo always keeps its own colour.
+    async hairTryOn({ fileId, templateId, refFileId, keepColor }) {
+      const body = { src_file_id: fileId };
+      if (templateId) {
+        body.template_id = templateId;
+        body.hair_color = keepColor ? 'src' : 'ref';
+      } else body.ref_file_id = refFileId;
       const results = await client.runTask('hair-transfer', body);
+      return { image: await downloadAsDataUrl(results.url, fetchImpl) };
+    },
+
+    async hatTryOn({ fileId, refFileId, gender }) {
+      const results = await client.runTask('hat', { src_file_id: fileId, ref_file_id: refFileId, gender, style: HAT_STYLE });
       return { image: await downloadAsDataUrl(results.url, fetchImpl) };
     },
 
@@ -92,7 +114,7 @@ export function createLiveFeatures(client, { fetchImpl = fetch } = {}) {
     async browPatterns() {
       if (browCache) return browCache;
       try {
-        const res = await fetchImpl(EYEBROW_CATALOG_URL);
+        const res = await fetchImpl(EYEBROW_CATALOG_URL, { signal: AbortSignal.timeout(10_000) });
         const rows = await res.json();
         const known = new Map(BROW_PATTERNS.map((p) => [p.label, p.name]));
         browCache = rows
@@ -112,12 +134,23 @@ export function createLiveFeatures(client, { fetchImpl = fetch } = {}) {
 // Demo mode. Scores are seeded from the photo bytes so a retake of the same
 // photo is stable and a different photo differs. Try-ons echo the photo back.
 
+const MAX_DEMO_FILES = 60;
+// Keeps the in-memory demo store far below a small host's memory (e.g. 512 MB).
+export const MAX_DEMO_BYTES = 96 * 1024 * 1024;
+
 export function createDemoFeatures() {
   const files = new Map();
+  let storedBytes = 0;
   const remember = (buffer, info) => {
     const id = `demo_${crypto.randomBytes(9).toString('base64url')}`;
     files.set(id, { buffer, info });
-    if (files.size > 60) files.delete(files.keys().next().value);
+    storedBytes += buffer.length;
+    // Evict oldest first, but never the photo just uploaded.
+    while (files.size > 1 && (files.size > MAX_DEMO_FILES || storedBytes > MAX_DEMO_BYTES)) {
+      const [oldId, old] = files.entries().next().value;
+      files.delete(oldId);
+      storedBytes -= old.buffer.length;
+    }
     return id;
   };
   const asDataUrl = (fileId) => {
@@ -134,6 +167,7 @@ export function createDemoFeatures() {
 
   return {
     mode: 'demo',
+    storedBytes: () => storedBytes,
     async upload(buffer, info) {
       return { fileId: remember(buffer, info) };
     },
@@ -150,13 +184,17 @@ export function createDemoFeatures() {
     async print() {
       await pause(700);
       return {
-        colors: { skin_color: '#c69c82', hair_color: '#4a3326', hair_color_name: 'Brown', eyebrow_color: '#3e2b22', eye_color: '#5b3a24', lip_color: '#b8676b' },
+        colors: { skin_color: '#c69c82', hair_color: '#42280E', hair_color_name: 'Brown', eyebrow_color: '#3e2b22', eye_color: '#5b3a24', lip_color: '#b8676b' },
         face: { faceShape: 'Oval', browShape: 'Soft Angled', browThickness: 'Average' },
         partial: false,
         demo: true,
       };
     },
     async hairTryOn({ fileId }) {
+      await pause(900);
+      return { image: asDataUrl(fileId), demo: true };
+    },
+    async hatTryOn({ fileId }) {
       await pause(900);
       return { image: asDataUrl(fileId), demo: true };
     },
@@ -181,6 +219,6 @@ const DEMO_TEMPLATES = [
   { id: 'demo_bob', title: 'Chin-length bob', category: 'Medium', keepsColor: true, thumb: null },
   { id: 'demo_lob', title: 'Shoulder lob', category: 'Medium', keepsColor: true, thumb: null },
   { id: 'demo_layers', title: 'Long layers', category: 'Long', keepsColor: true, thumb: null },
-  { id: 'demo_waves', title: 'Loose waves', category: 'Long', keepsColor: true, thumb: null },
+  { id: 'demo_waves', title: 'Loose waves', category: 'Long', keepsColor: false, thumb: null },
   { id: 'demo_crop', title: 'Classic crop', category: 'Short', keepsColor: true, thumb: null },
 ];

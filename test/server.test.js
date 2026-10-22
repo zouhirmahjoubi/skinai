@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createYouCamClient } from '../server/youcam.js';
-import { createLiveFeatures, createDemoFeatures } from '../server/features.js';
+import { createLiveFeatures, createDemoFeatures, MAX_DEMO_BYTES } from '../server/features.js';
+import { fetchRefImage, isPrivateAddress, RefImageError } from '../server/ref-image.js';
 import { createApp, isPublicHttpsUrl } from '../server/app.js';
 import { sniffImage, skinTierFor } from '../server/image-info.js';
 import { explain } from '../server/errors.js';
@@ -71,6 +72,7 @@ test('skin analysis uses v2.1, json format, and polls until success', async () =
       return { status: 200, data: { task_status: 'success', results: { output: [{ type: 'hd_redness', ui_score: 77, raw_score: 72.01, mask_urls: ['https://cdn.example/m.png'] }, { type: 'resize_image', mask_urls: ['https://cdn.example/base.jpg'] }] } } };
     }],
     ['GET', /^\/(m\.png|base\.jpg)$/, () => new Response(Buffer.from([0x89, 0x50, 0x4e, 0x47]), { status: 200, headers: { 'content-type': 'image/png' } })],
+    ['POST', /^\/s2s\/v2\.0\/task\/delete$/, () => ({ status: 200 })],
   ]);
   const client = createYouCamClient({ apiKey: 'k', fetchImpl, sleep: noSleep });
   const features = createLiveFeatures(client, { fetchImpl });
@@ -83,6 +85,10 @@ test('skin analysis uses v2.1, json format, and polls until success', async () =
   assert.equal(out.scores.redness.ui, 77);
   assert.match(out.scores.redness.mask, /^data:image\/png;base64,/);
   assert.match(out.baseImage, /^data:image\/png;base64,/);
+  const del = calls.findIndex((c) => c.path === '/s2s/v2.0/task/delete');
+  assert.deepEqual(JSON.parse(calls[del].body), { task_id: 'T1' });
+  assert.ok(del > calls.findIndex((c) => c.path === '/m.png'), 'task is deleted after its masks are downloaded');
+  assert.equal(out.deleted, true);
 });
 
 test('task errors surface the engine error code', async () => {
@@ -105,6 +111,37 @@ test('HTTP errors carry YouCam error_code', async () => {
   await assert.rejects(client.startTask('makeup-vto', {}), (err) => err.code === 'InvalidParameters' && err.status === 400);
 });
 
+test('401/429 bodies with only prose map to setup and rate-limit codes', async () => {
+  const { fetchImpl } = fakeYouCam([
+    ['GET', /client\/credit$/, () => new Response(JSON.stringify({ status: 401, error: 'Invalid API key' }), { status: 401 })],
+    ['POST', /task\/makeup-vto$/, () => new Response(JSON.stringify({ status: 429, error: 'Too many requests' }), { status: 429 })],
+  ]);
+  const client = createYouCamClient({ apiKey: 'k', fetchImpl, sleep: noSleep });
+  await assert.rejects(client.unitBalance(), (err) => err.code === 'InvalidApiKey' && explain(err.code).fix === 'setup');
+  await assert.rejects(client.startTask('makeup-vto', {}), (err) => err.code === 'RateLimitExceeded');
+  for (const c of ['InvalidApiKey', 'InactiveApiKey', 'ExpiredApiKey', 'InvalidAccessToken']) assert.equal(explain(c).fix, 'setup');
+});
+
+test('a transient poll failure does not abandon a paid task', async () => {
+  let polls = 0;
+  const { fetchImpl } = fakeYouCam([
+    ['POST', /task\/skin-tone-analysis$/, () => ({ status: 200, data: { task_id: 'T3' } })],
+    ['GET', /task\/skin-tone-analysis\/T3$/, () => {
+      polls += 1;
+      if (polls === 2) return new Response(JSON.stringify({ status: 503, error: 'busy' }), { status: 503 });
+      return polls < 3 ? { status: 200, data: { task_status: 'running' } } : { status: 200, data: { task_status: 'success', results: { color: { skin_color: '#aa8877' } } } };
+    }],
+  ]);
+  const client = createYouCamClient({ apiKey: 'k', fetchImpl, sleep: noSleep });
+  const out = await client.runTask('skin-tone-analysis', { src_file_id: 'F' });
+  assert.equal(out.color.skin_color, '#aa8877');
+});
+
+test('unit balance uses amount_dec', async () => {
+  const { fetchImpl } = fakeYouCam([['GET', /client\/credit$/, () => ({ status: 200, results: [{ amount: 10, amount_dec: 10.04 }, { amount_dec: 0.5 }] })]]);
+  assert.equal(await createYouCamClient({ apiKey: 'k', fetchImpl, sleep: noSleep }).unitBalance(), 10.54);
+});
+
 test('hairstyle try-on sends template + hair_color and brow try-on disables smoothing', async () => {
   const bodies = {};
   const { fetchImpl } = fakeYouCam([
@@ -117,6 +154,8 @@ test('hairstyle try-on sends template + hair_color and brow try-on disables smoo
   const features = createLiveFeatures(createYouCamClient({ apiKey: 'k', fetchImpl, sleep: noSleep }), { fetchImpl });
   const hair = await features.hairTryOn({ fileId: 'F', templateId: 'female_medium_straight', keepColor: true });
   assert.deepEqual(bodies.hair, { src_file_id: 'F', hair_color: 'src', template_id: 'female_medium_straight' });
+  await features.hairTryOn({ fileId: 'F', refFileId: 'R', keepColor: true });
+  assert.deepEqual(bodies.hair, { src_file_id: 'F', ref_file_id: 'R' }, 'a reference photo keeps its own colour: no hair_color');
   assert.match(hair.image, /^data:image\/jpeg;base64,/);
   await features.browTryOn({ fileId: 'F', pattern: 'SoftArch1', color: '#33241d', intensity: 55 });
   assert.equal(bodies.brow.version, '1.0');
@@ -151,8 +190,9 @@ test('API: demo upload -> analyze round trip, validation and access code', async
     const status = await (await fetch(`${base}/api/status`)).json();
     assert.deepEqual(status, { mode: 'demo', accessCodeRequired: true });
 
-    const denied = await fetch(`${base}/api/hair/templates`);
-    assert.equal(denied.status, 401);
+    // Free catalogue routes work without the code; anything that can spend units needs it.
+    assert.equal((await fetch(`${base}/api/hair/templates`)).status, 200);
+    assert.equal((await fetch(`${base}/api/units`)).status, 401);
 
     const h = { 'x-access-code': 'letmein' };
     const bad = await fetch(`${base}/api/upload`, { method: 'POST', headers: { ...h, 'content-type': 'image/jpeg' }, body: Buffer.from('definitely not a jpeg file') });
@@ -170,18 +210,86 @@ test('API: demo upload -> analyze round trip, validation and access code', async
 
     const ref = await fetch(`${base}/api/hair/try-on`, { method: 'POST', headers: { ...h, 'content-type': 'application/json' }, body: JSON.stringify({ fileId: up.fileId, refUrl: 'http://localhost/x.jpg' }) });
     assert.equal(ref.status, 400);
+    assert.equal((await ref.json()).error.fix, 'ref');
+
+    const malformed = await fetch(`${base}/api/print`, { method: 'POST', headers: { ...h, 'content-type': 'application/json' }, body: '{nope' });
+    assert.equal(malformed.status, 400);
+    assert.equal((await malformed.json()).error.code, 'BadRequest');
   });
 });
 
-test('API: per-IP daily limit protects units in live mode', async () => {
+test('API: unit budgets per IP and per server, refunded when a task fails', async () => {
   const features = { ...createDemoFeatures(), mode: 'live' };
-  const app = createApp({ features, perIpDailyLimit: 1, logger: {} });
+  const app = createApp({ features, perIpDailyUnits: 46, dailyUnitBudget: 0, logger: {} });
   await withServer(app, async (base) => {
     const up = await (await fetch(`${base}/api/upload`, { method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: jpeg(800, 1000) })).json();
-    const call = () => fetch(`${base}/api/print`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fileId: up.fileId }) });
-    assert.equal((await call()).status, 200);
-    assert.equal((await call()).status, 429);
+    const post = (p, b) => fetch(`${base}/api${p}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) });
+    assert.equal((await post('/skin/analyze', {})).status, 400); // validation error: refunded
+    assert.equal((await post('/print', { fileId: up.fileId })).status, 200); // 30 units
+    assert.equal((await post('/skin/analyze', { fileId: up.fileId, tier: 'hd' })).status, 200); // +16 = 46
+    const over = await post('/print', { fileId: up.fileId });
+    assert.equal(over.status, 429);
+    assert.equal((await over.json()).error.code, 'DailyLimit');
   });
+  const shared = createApp({ features, perIpDailyUnits: 0, dailyUnitBudget: 31, logger: {} });
+  await withServer(shared, async (base) => {
+    const post = () => fetch(`${base}/api/print`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fileId: 'x' }) });
+    assert.equal((await post()).status, 200);
+    const r = await post();
+    assert.equal(r.status, 429);
+    assert.equal((await r.json()).error.code, 'DemoBudget');
+  });
+});
+
+test('API: security headers, and CSP only when enabled', async () => {
+  await withServer(createApp({ features: createDemoFeatures(), logger: {}, csp: true }), async (base) => {
+    const r = await fetch(`${base}/api/status`);
+    assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(r.headers.get('cache-control'), 'no-store');
+    assert.match(r.headers.get('content-security-policy'), /frame-ancestors 'none'/);
+  });
+  await withServer(createApp({ features: createDemoFeatures(), logger: {} }), async (base) => {
+    assert.equal((await fetch(`${base}/api/status`)).headers.get('content-security-policy'), null);
+  });
+});
+
+test('API: shop wig links are checked before any units are spent', async () => {
+  let uploaded = 0;
+  const demo = createDemoFeatures();
+  const features = { ...demo, mode: 'live', upload: async (b, i) => ((uploaded += 1), demo.upload(b, i)), hairTryOn: async (o) => ({ image: 'x', body: o }) };
+  const big = { buf: jpeg(2048, 2048), info: { type: 'image/jpeg', ext: 'jpg', width: 2048, height: 2048 } };
+  const refFetch = async (url, { maxLongSide }) => {
+    if (Math.max(big.info.width, big.info.height) > maxLongSide) throw new RefImageError('error_exceed_max_image_size', 'too big');
+    return big;
+  };
+  await withServer(createApp({ features, refFetch, logger: {} }), async (base) => {
+    const r = await fetch(`${base}/api/hair/try-on`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fileId: 'F', refUrl: 'https://shop.example/wig.jpg' }) });
+    assert.equal(r.status, 400);
+    const e = (await r.json()).error;
+    assert.equal(e.fix, 'ref');
+    assert.equal(e.code, 'error_exceed_max_image_size');
+    assert.equal(uploaded, 0);
+  });
+});
+
+test('API: hat try-on needs a styling choice and a product photo', async () => {
+  await withServer(createApp({ features: createDemoFeatures(), logger: {} }), async (base) => {
+    const post = (b) => fetch(`${base}/api/hat/try-on`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) });
+    assert.equal((await (await post({ fileId: 'F', refFileId: 'R' })).json()).error.code, 'MissingGender');
+    assert.equal((await (await post({ fileId: 'F', gender: 'female' })).json()).error.code, 'MissingStyle');
+    const ok = await (await post({ fileId: 'F', refFileId: 'R', gender: 'female' })).json();
+    assert.equal(ok.demo, true);
+  });
+});
+
+test('demo file store stays under its byte cap', async () => {
+  const demo = createDemoFeatures();
+  const info = { type: 'image/jpeg', ext: 'jpg', width: 800, height: 1000 };
+  const ids = [];
+  for (let i = 0; i < 12; i++) ids.push((await demo.upload(Buffer.alloc(10 * 1024 * 1024, i), info)).fileId);
+  assert.ok(demo.storedBytes() <= MAX_DEMO_BYTES);
+  assert.ok((await demo.hairTryOn({ fileId: ids[11] })).image, 'newest photo is kept');
+  assert.equal((await demo.hairTryOn({ fileId: ids[0] })).image, null, 'oldest photo was evicted');
 });
 
 test('only public https reference URLs are accepted', () => {
@@ -190,4 +298,20 @@ test('only public https reference URLs are accepted', () => {
   assert.ok(!isPublicHttpsUrl('https://localhost/wig.jpg'));
   assert.ok(!isPublicHttpsUrl('https://192.168.1.2/wig.jpg'));
   assert.ok(!isPublicHttpsUrl('not a url'));
+});
+
+test('reference links: private hosts, redirects to them, and oversize photos are refused', async () => {
+  assert.ok(isPrivateAddress('10.1.2.3') && isPrivateAddress('169.254.169.254') && isPrivateAddress('::1') && isPrivateAddress('::ffff:127.0.0.1'));
+  assert.ok(!isPrivateAddress('93.184.216.34'));
+  const lookup = async (host) => (host === 'internal.example' ? [{ address: '10.0.0.5' }] : [{ address: '93.184.216.34' }]);
+  const img = jpeg(2048, 1536);
+  const fetchImpl = async (url) => {
+    if (url.includes('/redirect')) return new Response(null, { status: 302, headers: { location: 'https://internal.example/x.jpg' } });
+    return new Response(img, { status: 200, headers: { 'content-type': 'image/jpeg' } });
+  };
+  await assert.rejects(fetchRefImage('https://internal.example/x.jpg', { fetchImpl, lookup }), (e) => e.code === 'InvalidRefUrl');
+  await assert.rejects(fetchRefImage('https://shop.example/redirect', { fetchImpl, lookup }), (e) => e.code === 'InvalidRefUrl');
+  await assert.rejects(fetchRefImage('https://shop.example/wig.jpg', { fetchImpl, lookup, maxLongSide: 1024 }), (e) => e.code === 'error_exceed_max_image_size');
+  const ok = await fetchRefImage('https://shop.example/wig.jpg', { fetchImpl, lookup });
+  assert.equal(ok.info.width, 2048);
 });
