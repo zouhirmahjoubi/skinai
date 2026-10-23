@@ -2,7 +2,9 @@
 // real API. Spends roughly 16 (HD skin) or 12 (SD) + 20 (colour tones)
 // + 10 (face attributes) + 1 (brows) + 2 (hair) + 2 (hat) units.
 //
-//   YOUCAM_API_KEY=... node scripts/smoke.mjs face.jpg [portrait.jpg] [hat.jpg]
+//   npm run smoke -- face.jpg [portrait.jpg] [hat.jpg]
+//
+// The key comes from YOUCAM_API_KEY or, failing that, from .env.
 //
 // face.jpg:     front-facing JPEG selfie, face filling most of the width. A short
 //               side >= 1080 px runs the HD skin tier. Makeup VTO needs the long
@@ -14,14 +16,18 @@
 // redacted), which test/live-shape.test.js then checks.
 
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { createYouCamClient } from '../server/youcam.js';
 import { createLiveFeatures } from '../server/features.js';
 import { sniffImage, skinTierFor } from '../server/image-info.js';
+import { loadDotEnv } from '../server/env.js';
+
+loadDotEnv(fileURLToPath(new URL('../.env', import.meta.url)));
 
 const [facePath, portraitPath, hatPath] = process.argv.slice(2);
 const apiKey = process.env.YOUCAM_API_KEY;
 if (!apiKey || !facePath) {
-  console.error('Usage: YOUCAM_API_KEY=... node scripts/smoke.mjs face.jpg [portrait.jpg] [hat.jpg]');
+  console.error('Usage: npm run smoke -- face.jpg [portrait.jpg] [hat.jpg]  (YOUCAM_API_KEY in .env or the environment)');
   process.exit(1);
 }
 

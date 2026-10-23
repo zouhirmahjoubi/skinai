@@ -8,11 +8,14 @@ import express from 'express';
 import { createApp } from './app.js';
 import { createYouCamClient } from './youcam.js';
 import { createLiveFeatures, createDemoFeatures } from './features.js';
+import { loadDotEnv } from './env.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 loadDotEnv(path.join(root, '.env'));
 
 const dev = process.argv.includes('--dev');
+// Set here rather than in package.json so `npm start` also works on Windows.
+if (!dev) process.env.NODE_ENV ||= 'production';
 const apiKey = (process.env.YOUCAM_API_KEY || '').trim();
 const forceDemo = process.env.DEMO_MODE === '1';
 const features = apiKey && !forceDemo ? createLiveFeatures(createYouCamClient({ apiKey })) : createDemoFeatures();
@@ -60,14 +63,3 @@ app.listen(port, () => {
       .catch((e) => console.error(`YouCam key check FAILED (${e.code}): live calls will fail until YOUCAM_API_KEY is fixed`));
   }
 });
-
-function loadDotEnv(file) {
-  if (!fs.existsSync(file)) return;
-  for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
-    if (!m || process.env[m[1]] !== undefined) continue;
-    let v = m[2];
-    if (!/^['"]/.test(v)) v = v.replace(/\s+#.*$/, '');
-    process.env[m[1]] = v.replace(/^(['"])(.*)\1$/, '$2');
-  }
-}
