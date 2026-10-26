@@ -30,6 +30,7 @@ export default function CheckIn() {
   const tier = short >= 1080 ? 'hd' : short >= 480 ? 'sd' : null;
   const tierMismatch = shot && baseline && tier && !real.some((c) => c.tier === tier);
   const sameTierBase = real.find((c) => c.tier === tier);
+  const photoError = error?.fix === 'photo';
   const light = shot && sameTierBase ? lightingCheck({ capture: { brightness: shot.brightness } }, sameTierBase) : { comparable: true };
 
   async function analyse() {
@@ -88,7 +89,7 @@ export default function CheckIn() {
           <p className="sr-only" role="status">
             {step >= 0 ? `${STEPS[step]}…${step === 1 ? ' This usually takes 10 to 30 seconds.' : ''}` : ''}
           </p>
-          <div className="photo">
+          <div className="photo preview">
             <img src={shot.dataUrl} alt="Your check-in photo" />
           </div>
           {!tier && (
@@ -114,10 +115,11 @@ export default function CheckIn() {
             </div>
           ) : (
             <>
-              <ErrorBox error={error} onRetry={error?.fix === 'photo' ? retake : analyse} />
+              <ErrorBox error={error} />
+              {/* After a rejected photo, Retake is the way forward; otherwise Analyse (which also retries). */}
               <div className="row">
-                <button className="btn secondary" onClick={retake}>Retake</button>
-                <button className="btn primary" style={{ flex: 1 }} onClick={analyse} disabled={!tier}>Analyse my skin</button>
+                <button className={`btn ${photoError ? 'primary' : 'secondary'}`} style={photoError ? { flex: 1 } : undefined} onClick={retake} autoFocus={photoError}>Retake</button>
+                <button className={`btn ${photoError ? 'secondary' : 'primary'}`} style={photoError ? undefined : { flex: 1 }} onClick={analyse} disabled={!tier} autoFocus={!photoError}>Analyse my skin</button>
               </div>
             </>
           )}

@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useStore } from '../lib/store.jsx';
 import { api } from '../lib/api.js';
 import { db, newId, today } from '../lib/db.js';
 import { loadImage, cropToJpeg } from '../lib/image.js';
-import { TopBar, Capture, Steps, ErrorBox, CompareSlider } from '../components.jsx';
+import { TopBar, Capture, Steps, ErrorBox, CompareSlider, Icon } from '../components.jsx';
 import { browPatternFor, FACE_SHAPE_TIPS } from '../../../core/brows.js';
 import { BROW_PRODUCTS } from '../../../core/catalog.js';
 import { closest } from '../../../core/color.js';
@@ -46,6 +46,20 @@ async function withFiles(photos, fn) {
 
 const demoLabel = (label, demo) => (demo ? `${label} (demo, photo unchanged)` : label);
 
+/**
+ * When a try-on result replaces its picker, bring the comparison into view and
+ * put focus on its first button (Save), so nobody is left on <body> or mid-page.
+ */
+function useResultFocus(result) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!result || !ref.current) return;
+    ref.current.scrollIntoView({ block: 'start' });
+    ref.current.querySelector('button')?.focus({ preventScroll: true });
+  }, [result]);
+  return ref;
+}
+
 function Swatch({ label, hex, name, family }) {
   return (
     <div className="swatch">
@@ -64,6 +78,8 @@ function Swatch({ label, hex, name, family }) {
 // a large but wide photo isn't rejected for the size it was shrunk to.
 function ProductPhotoPicker({ label, hint, linkHint, photo, onPhoto, url, onUrl, minShort = 0, maxLong = 1024 }) {
   const [problem, setProblem] = useState('');
+  const fileRef = useRef(null);
+  const hintId = useId();
   async function pick(e) {
     const f = e.target.files?.[0];
     e.target.value = '';
@@ -89,11 +105,15 @@ function ProductPhotoPicker({ label, hint, linkHint, photo, onPhoto, url, onUrl,
   }
   return (
     <div className="stack">
-      <label className="field">
+      <div className="field" role="group" aria-label={label}>
         <span>{label}</span>
-        <input className="input" type="file" accept="image/*" onChange={pick} />
-        <small>{hint}</small>
-      </label>
+        <button type="button" className="btn secondary" aria-describedby={hintId} onClick={() => fileRef.current?.click()}>
+          <Icon name="upload" />
+          {photo ? 'Choose another photo' : 'Add photo'}
+        </button>
+        <input ref={fileRef} type="file" accept="image/*" hidden onChange={pick} />
+        <small id={hintId}>{hint}</small>
+      </div>
       {photo && (
         <div className="row">
           <img src={photo.dataUrl} alt="Chosen product photo" style={{ width: 64, borderRadius: 10 }} />
@@ -105,7 +125,7 @@ function ProductPhotoPicker({ label, hint, linkHint, photo, onPhoto, url, onUrl,
         <input className="input" type="url" inputMode="url" placeholder="https://…/photo.jpg" value={url} onChange={(e) => onUrl(e.target.value.trim())} />
         <small>{linkHint || 'A direct link to a .jpg or .png.'} If it doesn’t work, save the picture and add it above.</small>
       </label>
-      {problem && <div className="banner">{problem}</div>}
+      {problem && <div className="banner" role="alert">{problem}</div>}
     </div>
   );
 }
@@ -295,6 +315,7 @@ function WigSection({ portraitState }) {
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [saved, setSaved] = useState(false);
+  const resultRef = useResultFocus(result);
 
   useEffect(() => {
     api.hairTemplates().then((r) => setTemplates(r.templates || [])).catch((err) => setError(err));
@@ -327,6 +348,7 @@ function WigSection({ portraitState }) {
   }
 
   async function saveLook() {
+    if (saved) return;
     const label = `${result.label}${result.mine ? ', my colour' : ''}`;
     await addLook({ id: newId(), kind: 'hair', image: result.image, label: demoLabel(label, result.demo), createdAt: new Date().toISOString(), demo: result.demo });
     setSaved(true);
@@ -337,13 +359,14 @@ function WigSection({ portraitState }) {
     <section className="sheet stack" aria-labelledby="wig">
       <h2 id="wig">Try wig styles on yourself</h2>
       <p>Try styles from home, at your own pace, before you visit a wig specialist or order online. Many shops won’t take a wig back once it has been worn.</p>
-      <PortraitPicker portrait={portrait} save={save} clear={clear} why="Hairstyle try-on needs your head and shoulders." />
+      <p className="sr-only" role="status">{busy ? 'Rendering your try-on…' : saved ? 'Saved to your looks.' : result ? 'Try-on ready.' : ''}</p>
+      <PortraitPicker portrait={portrait} save={save} clear={clear} why="Hairstyle try-on works from one portrait photo." />
       {portrait && result && (
-        <div className="stack">
+        <div className="stack" ref={resultRef}>
           <CompareSlider before={portrait.dataUrl} after={result.image} afterLabel={result.demo ? `${result.label} (demo)` : result.label} />
           {result.demo && <div className="banner">Demo mode: this is your photo unchanged. With a YouCam key on the server, this shows the real try-on.</div>}
-          <div className="row">
-            <button className="btn primary" style={{ flex: 1 }} onClick={saveLook} disabled={saved}>{saved ? 'Saved to your looks' : 'Save to my looks'}</button>
+          <div className="row wrap">
+            <button className="btn primary" onClick={saveLook} aria-disabled={saved || undefined}>{saved ? 'Saved to your looks' : 'Save to my looks'}</button>
             <button className="btn secondary" onClick={() => setResult(null)}>Try another</button>
           </div>
         </div>
@@ -413,6 +436,7 @@ function HeadwearSection({ portraitState }) {
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [saved, setSaved] = useState(false);
+  const resultRef = useResultFocus(result);
   const tooSmall = portrait && Math.min(portrait.width || 0, portrait.height || 0) < 512;
   // The portrait is shared with the wig section; a new one invalidates this try-on.
   useEffect(() => {
@@ -441,15 +465,16 @@ function HeadwearSection({ portraitState }) {
     <section className="sheet stack" aria-labelledby="hats">
       <h2 id="hats">Hats, caps and headbands</h2>
       <p>Not everyone wants a wig. Try a soft cap, beanie or sun hat from any shop on yourself first, with YouCam’s hat try-on.</p>
+      <p className="sr-only" role="status">{busy ? 'Rendering your try-on…' : saved ? 'Saved to your looks.' : result ? 'Try-on ready.' : ''}</p>
       {!portrait ? (
         <PortraitPicker portrait={portrait} save={save} clear={clear} why="Head-covering try-on uses the same portrait as wig try-on." />
       ) : result ? (
-        <div className="stack">
+        <div className="stack" ref={resultRef}>
           <img src={result.image} alt={demoLabel('Head-covering try-on', result.demo)} style={{ width: '100%', borderRadius: 16 }} />
           <p className="fine">Styled preview: YouCam also restyles your outfit and background around the hat.</p>
           {result.demo && <div className="banner">Demo mode: this is your photo unchanged. With a YouCam key on the server, this shows the real try-on.</div>}
-          <div className="row">
-            <button className="btn primary" style={{ flex: 1 }} disabled={saved} onClick={async () => { await addLook({ id: newId(), kind: 'headwear', image: result.image, label: demoLabel('Head covering', result.demo), createdAt: new Date().toISOString(), demo: result.demo }); setSaved(true); }}>
+          <div className="row wrap">
+            <button className="btn primary" aria-disabled={saved || undefined} onClick={async () => { if (saved) return; await addLook({ id: newId(), kind: 'headwear', image: result.image, label: demoLabel('Head covering', result.demo), createdAt: new Date().toISOString(), demo: result.demo }); setSaved(true); }}>
               {saved ? 'Saved to your looks' : 'Save to my looks'}
             </button>
             <button className="btn secondary" onClick={() => setResult(null)}>Try another</button>
@@ -525,6 +550,7 @@ function BrowSection({ onNeedPrint }) {
     setPattern(suggested);
     if (myBrows) setColorChoice('mine');
   }, [print?.date]);
+  const resultRef = useResultFocus(result);
 
   if (!print) {
     return (
@@ -569,6 +595,7 @@ function BrowSection({ onNeedPrint }) {
     <section className="sheet stack" aria-labelledby="brows">
       <h2 id="brows">Your brows, recreated</h2>
       <p>Brows and lashes can thin during chemotherapy. See your own shape and colour drawn back on with YouCam makeup try-on. Skin smoothing is switched off, so the rest of your face is untouched.</p>
+      <p className="sr-only" role="status">{busy ? 'Drawing your brows…' : saved ? 'Saved to your looks.' : result ? 'Brow preview ready.' : ''}</p>
       {todayPhoto ? (
         <div className="row">
           <img src={todayPhoto.dataUrl} alt="Your photo for brow preview" style={{ width: 72, borderRadius: 12 }} />
@@ -585,11 +612,11 @@ function BrowSection({ onNeedPrint }) {
         </details>
       )}
       {result ? (
-        <div className="stack">
+        <div className="stack" ref={resultRef}>
           <CompareSlider before={source.dataUrl} after={result.image} beforeLabel={source.label} afterLabel={result.demo ? `${name} (demo)` : name} />
           {result.demo && <div className="banner">Demo mode: this is your photo unchanged. With a YouCam key on the server, this draws the brows.</div>}
           <div className="row wrap">
-            <button className="btn primary" disabled={saved} onClick={async () => { await addLook({ id: newId(), kind: 'brows', image: result.image, label: demoLabel(`Brows: ${name}`, result.demo), createdAt: new Date().toISOString(), demo: result.demo }); setSaved(true); }}>
+            <button className="btn primary" aria-disabled={saved || undefined} onClick={async () => { if (saved) return; await addLook({ id: newId(), kind: 'brows', image: result.image, label: demoLabel(`Brows: ${name}`, result.demo), createdAt: new Date().toISOString(), demo: result.demo }); setSaved(true); }}>
               {saved ? 'Saved to your looks' : 'Save to my looks'}
             </button>
             <button className="btn secondary" onClick={() => setResult(null)}>Adjust</button>
@@ -637,7 +664,7 @@ function BrowSection({ onNeedPrint }) {
             <input type="range" min="20" max="90" value={intensity} onChange={(e) => setIntensity(Number(e.target.value))} />
           </label>
           {pencil && (
-            <button type="button" className="btn small secondary" aria-pressed={list.includes(pencil.id)} onClick={() => toggleList(pencil.id)}>
+            <button type="button" className="btn small secondary" onClick={() => toggleList(pencil.id)}>
               {list.includes(pencil.id) ? `${pencil.name} is on my list` : `Add ${pencil.name} ($${pencil.price}) to my list`}
             </button>
           )}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useStore, useInsights } from '../lib/store.jsx';
-import { TopBar, RoadAhead, NoteCard, Icon } from '../components.jsx';
-import { TREATMENTS, treatmentPhase, expectationsFor, RED_FLAGS } from '../../../core/treatments.js';
+import { TopBar, RoadAhead, NoteCard, Icon, RedFlags } from '../components.jsx';
+import { TREATMENTS, treatmentPhase, expectationsFor } from '../../../core/treatments.js';
 import { hasAccessCode } from '../lib/api.js';
 
 const fmt = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
@@ -34,6 +34,20 @@ export default function Today() {
   const nextCheckin = last ? new Date(`${last.date}T12:00:00`) : null;
   nextCheckin?.setDate(nextCheckin.getDate() + 7);
   const nouns = treatments.map((t) => TREATMENTS[t].noun);
+  // A "tell your care team" note leads the screen, ahead of the calm check-in card.
+  const callFirst = current && urgent.some((n) => n.level === 'call');
+  const latest = current && urgent.length > 0 && (
+    <section aria-labelledby="latest">
+      <div className="section-title">
+        <h2 id="latest">From your last check-in</h2>
+        <a href={`#/result/${current.id}`}>Details</a>
+      </div>
+      {urgent.slice(0, 2).map((n) => (
+        <NoteCard key={n.id} note={n} />
+      ))}
+      <a className="btn secondary block" style={{ marginTop: 12 }} href="#/shelf">See what to use and avoid</a>
+    </section>
+  );
   const treatmentList = nouns.length ? `${nouns.slice(0, -1).join(', ')}${nouns.length > 1 ? ' and ' : ''}${nouns[nouns.length - 1]}`.replace(/^./, (c) => c.toUpperCase()) : 'No treatment type chosen';
 
   return (
@@ -66,6 +80,8 @@ export default function Today() {
         <p className="road-caption">Filled dots are your check-ins. Bars show when side effects commonly appear with your treatments; everyone is different.</p>
       </section>
 
+      {callFirst && latest}
+
       <section className="sheet stack">
         {phase.phase === 'before' && !last ? (
           <>
@@ -89,18 +105,7 @@ export default function Today() {
         </a>
       </section>
 
-      {current && urgent.length > 0 && (
-        <section aria-labelledby="latest">
-          <div className="section-title">
-            <h2 id="latest">From your last check-in</h2>
-            <a href={`#/result/${current.id}`}>Details</a>
-          </div>
-          {urgent.slice(0, 2).map((n) => (
-            <NoteCard key={n.id} note={n} />
-          ))}
-          <a className="btn secondary block" style={{ marginTop: 12 }} href="#/shelf">See what to use and avoid</a>
-        </section>
-      )}
+      {!callFirst && latest}
 
       {losesHair && !print && (
         <section className="sheet tint stack">
@@ -144,17 +149,7 @@ export default function Today() {
         </section>
       )}
 
-      <details className="sheet" open>
-        <summary style={{ cursor: 'pointer', fontWeight: 700 }}>
-          <span style={{ color: 'var(--call)' }}>Call your care team now if you notice…</span>
-        </summary>
-        <ul className="list-plain" style={{ marginTop: 12 }}>
-          {RED_FLAGS.map((f) => (
-            <li key={f}>{f}</li>
-          ))}
-        </ul>
-        <p className="fine" style={{ marginTop: 10 }}>Don’t wait for a check-in. Use the number your treatment centre gave you; in an emergency call your local emergency number.</p>
-      </details>
+      <RedFlags />
       <section className="sheet stack">
         <div className="row spread">
           <h2>Care-team summary</h2>

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useStore, useInsights, go } from '../lib/store.jsx';
-import { TopBar, NoteCard, ScoreRow } from '../components.jsx';
+import { TopBar, NoteCard, ScoreRow, RedFlags } from '../components.jsx';
 import { CONCERN_BY_KEY } from '../../../core/concerns.js';
-import { treatmentPhase, RED_FLAGS } from '../../../core/treatments.js';
+import { treatmentPhase } from '../../../core/treatments.js';
 
 const fmt = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -47,19 +47,12 @@ export default function Result({ param }) {
         {notes.map((n) => (
           <NoteCard key={n.id} note={n} />
         ))}
-        {hasCall && (
-          <div className="fine" style={{ marginTop: 10 }}>
-            <p>Call your care team now rather than waiting if you have any of these:</p>
-            <ul className="list-plain" style={{ marginTop: 6 }}>
-              {RED_FLAGS.map((f) => (
-                <li key={f}>{f}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        <div className="row" style={{ marginTop: 12 }}>
-          <a className="btn primary" style={{ flex: 1 }} href="#/shelf">What to use and avoid</a>
-          <a className="btn secondary" href="#/report">Summary</a>
+        {hasCall && <RedFlags style={{ marginTop: 12 }} />}
+        {/* When the note says to tell the care team, the summary for them is the main action. */}
+        <div className="row wrap" style={{ marginTop: 12 }}>
+          {hasCall && <a className="btn primary" href="#/report">Care-team summary</a>}
+          <a className={`btn ${hasCall ? 'secondary' : 'primary'}`} href="#/shelf">What to use and avoid</a>
+          {!hasCall && <a className="btn secondary" href="#/report">Care-team summary</a>}
         </div>
       </section>
 
@@ -81,7 +74,7 @@ export default function Result({ param }) {
         </div>
         <div className="scores">
           {comparison.rows.map((r) => (
-            <ScoreRow key={r.key} row={r} pressed={selected === r.key} onPress={() => setSelected(selected === r.key ? null : r.key)} />
+            <ScoreRow key={r.key} row={r} pressed={selected === r.key} onPress={hasMasks ? () => setSelected(selected === r.key ? null : r.key) : undefined} />
           ))}
         </div>
         <p className="fine" style={{ marginTop: 10 }}>

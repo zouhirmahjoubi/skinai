@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore, go } from '../lib/store.jsx';
 import { Logo } from '../components.jsx';
 import { TREATMENTS, TREATMENT_KEYS } from '../../../core/treatments.js';
@@ -14,6 +14,21 @@ export default function Welcome() {
   const [startDate, setStartDate] = useState(today());
   const [name, setName] = useState('');
   const [consent, setConsent] = useState(false);
+
+  // The steps share one route, so App's focus-the-heading effect never runs here:
+  // each step opens at the top, names itself and moves focus to its question.
+  const shownStep = useRef(step);
+  useEffect(() => {
+    if (shownStep.current === step) return;
+    shownStep.current = step;
+    document.title = step ? `Set up, step ${step} of 3 · Ahead` : 'Welcome · Ahead';
+    window.scrollTo(0, 0);
+    const h1 = document.querySelector('main h1');
+    if (h1) {
+      h1.setAttribute('tabindex', '-1');
+      h1.focus({ preventScroll: true });
+    }
+  }, [step]);
 
   const toggle = (k) => setTreatments((t) => (t.includes(k) ? t.filter((x) => x !== k) : [...t, k]));
 
@@ -36,19 +51,17 @@ export default function Welcome() {
         </div>
         <div className="stack">
           <h1>Treatment changes how your skin, hair and brows look. Ahead helps you stay a step ahead of it.</h1>
-          <p className="muted">
-            Before your hair changes, save how your hair and brows look and try wigs, brows and hats on yourself. Each week, a selfie shows which skin changes are real and which are just the camera, explained for your treatment, with a clear prompt when to call your care team and a shelf of products that are safe right now.
-          </p>
+          <p className="muted">Try wigs, brows and hats on yourself before your hair changes. Each week, a selfie shows which skin changes are real, when to call your care team, and which products are safe right now.</p>
         </div>
-        <div className="sheet tint stack">
-          <h3>Private by design</h3>
-          <p>Your photos and history stay on this device, not on our server. Photos go to the YouCam analysis service only when you ask for a check-in or try-on.</p>
-          {isIOS && !standalone && <p className="small">On iPhone, Safari can clear websites you haven’t opened for a week. Add Ahead to your Home Screen first (Share, then Add to Home Screen) and set it up from there.</p>}
-        </div>
+        {isIOS && !standalone && <p className="small">On iPhone, Safari can clear websites you haven’t opened for a week. Add Ahead to your Home Screen first (Share, then Add to Home Screen) and set it up from there.</p>}
         <div className="stack">
           <button className="btn primary block" onClick={() => setStep(1)}>Set up Ahead</button>
           <button className="btn secondary block" onClick={sample}>Explore a sample journey first</button>
           {server.mode === 'demo' && <p className="fine center">This server has no YouCam key, so analysis shows demo results.</p>}
+        </div>
+        <div className="sheet tint stack">
+          <h3>Private by design</h3>
+          <p>Your photos and history stay on this device, not on our server. Photos go to the YouCam analysis service only when you ask for a check-in or try-on.</p>
         </div>
       </div>
     );
@@ -62,7 +75,7 @@ export default function Welcome() {
           <h1>Which treatments are you having?</h1>
           <p className="muted">Choose all that apply. This only changes how Ahead explains skin changes; you can edit it later.</p>
         </div>
-        <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+        <fieldset style={{ border: 0, padding: 0, marginInline: 0, marginBottom: 0 }}>
           <legend className="sr-only">Treatments</legend>
           {TREATMENT_KEYS.map((k) => (
             <label key={k} className="choice">
@@ -113,14 +126,14 @@ export default function Welcome() {
         <p className="muted">Step 3 of 3</p>
         <h1>Before you start</h1>
       </div>
-      <ul className="list-plain stack">
+      <ul className="list-plain stack" style={{ marginTop: 28 }}>
         <li>Ahead is a journal and a guide, not a diagnosis. Your care team always has the final word, and the safety signs on the Today screen mean call them now.</li>
         <li>Skin scores come from the YouCam AI Skin Analysis service. One photo can be off, so Ahead only flags changes larger than normal photo-to-photo variation.</li>
         <li>Photos you analyse are uploaded to YouCam (Perfect Corp.). Ahead asks YouCam to delete each check-in photo and its results as soon as they arrive; try-on photos are deleted by YouCam automatically within its retention period (up to 30 days). Ahead’s server doesn’t store photos.</li>
       </ul>
       <label className="choice">
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-        <span>I understand, and I’m happy for my check-in photos to be analysed this way.</span>
+        <span>I understand, and I’m happy for the photos I choose to be analysed this way.</span>
       </label>
       <div className="row">
         <button className="btn secondary" onClick={() => setStep(2)}>Back</button>

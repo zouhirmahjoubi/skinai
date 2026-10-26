@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useStore, useInsights } from '../lib/store.jsx';
 import { TopBar } from '../components.jsx';
 import { CATALOG, TYPE_LABEL, PRODUCT_BY_ID } from '../../../core/catalog.js';
@@ -9,17 +9,22 @@ function Inci({ product, reasons }) {
   for (const r of reasons) for (const m of r.matches || []) hits.set(m, r.type);
   return (
     <details className="inci">
-      <summary>Ingredients</summary>
+      <summary>Ingredients<span className="sr-only"> in {product.name}</span></summary>
       <p>
         {parseInci(product.ingredients).map((name, i, all) => {
           const type = hits.get(name);
-          const text = `${name}${i < all.length - 1 ? ', ' : ''}`;
+          // The separator stays outside the highlight, so neighbouring flagged ingredients don't merge.
+          const sep = i < all.length - 1 ? ', ' : '';
           return type ? (
-            <mark key={i} className={type === 'good' ? 'good' : type}>
-              {text}
-            </mark>
+            <span key={i}>
+              <mark className={type === 'good' ? 'good' : type}>
+                <span className="sr-only">{type === 'good' ? 'helps: ' : 'flagged: '}</span>
+                {name}
+              </mark>
+              {sep}
+            </span>
           ) : (
-            <span key={i}>{text}</span>
+            <span key={i}>{name}{sep}</span>
           );
         })}
       </p>
@@ -30,13 +35,19 @@ function Inci({ product, reasons }) {
 function Product({ item, saved, onToggle }) {
   const { product, reasons, verdict } = item;
   const shown = verdict === 'good' ? reasons.filter((r) => r.type === 'good') : reasons.filter((r) => r.type !== 'good');
+  const head = useRef(null);
+  function toggle() {
+    onToggle(product.id);
+    // A removed "Not right now" item loses its button; keep focus on the card instead of the page top.
+    if (verdict === 'avoid' && saved) requestAnimationFrame(() => head.current?.focus());
+  }
   return (
     <article className="product">
       <div className="pack" aria-hidden="true">{TYPE_LABEL[product.type]}</div>
       <div>
         <div className="row spread" style={{ alignItems: 'flex-start' }}>
           <div>
-            <h3>{product.name}</h3>
+            <h3 ref={head} tabIndex={-1}>{product.name}</h3>
             <div className="line">{product.line}, {product.size}</div>
           </div>
           <span className="price">${product.price}</span>
@@ -44,17 +55,17 @@ function Product({ item, saved, onToggle }) {
         <ul className="reasons">
           {shown.slice(0, 4).map((r) => (
             <li key={r.cls} className={r.type}>
-              {r.type === 'good' ? `Has ${r.text.toLowerCase()}` : r.text}
+              {r.text}
             </li>
           ))}
           {verdict === 'good' && shown.length === 0 && <li>Nothing that commonly irritates</li>}
         </ul>
         <Inci product={product} reasons={reasons} />
         {(verdict !== 'avoid' || saved) && (
-          <div className="row spread" style={{ marginTop: 10 }}>
-            {saved ? <span className="fine">On your list</span> : <span />}
-            <button type="button" className="btn small secondary" aria-pressed={saved} onClick={() => onToggle(product.id)}>
-              {saved ? 'Remove from my list' : 'Save to my list'}
+          <div className="row spread" style={{ marginTop: 10, flexWrap: 'wrap' }}>
+            {saved ? <span className="fine" style={{ whiteSpace: 'nowrap' }}>On your list</span> : <span />}
+            <button type="button" className="btn small secondary" aria-label={saved ? `Remove ${product.name} from my list` : `Save to my list: ${product.name}`} onClick={toggle}>
+              {saved ? 'Remove' : 'Save to my list'}
             </button>
           </div>
         )}
@@ -78,6 +89,16 @@ export default function Shelf() {
   const count = saved.length + pencils.length;
   const total = saved.reduce((sum, r) => sum + r.product.price, 0) + pencils.reduce((sum, p) => sum + p.price, 0);
   const flagged = saved.filter((r) => r.verdict !== 'good');
+  const mine = [...saved.map((r) => r.product), ...pencils];
+  // Removing a row unmounts its button: move focus to the list heading, or the page heading once the list is empty.
+  const removeFromList = (id) => {
+    toggleList(id);
+    requestAnimationFrame(() => {
+      const el = document.getElementById('mylist') || document.querySelector('main h1');
+      el?.setAttribute('tabindex', '-1');
+      el?.focus();
+    });
+  };
   const item = (r) => <Product key={r.product.id} item={r} saved={list.includes(r.product.id)} onToggle={toggleList} />;
 
   return (
@@ -90,7 +111,7 @@ export default function Shelf() {
 
       {count > 0 && (
         <section className="sheet stack" aria-labelledby="mylist">
-          <h2 id="mylist">My list</h2>
+          <h2 id="mylist" tabIndex={-1}>My list</h2>
           <p className="small">
             {count} {count === 1 ? 'product' : 'products'}, ${total} in total. Your list goes on your care-team summary so you can check before starting anything new.
           </p>
@@ -100,15 +121,15 @@ export default function Shelf() {
               {flagged.map((r) => `${r.product.name} is now under “${r.verdict === 'avoid' ? 'Not right now' : 'Use with care'}”`).join('; ')}.
             </p>
           )}
-          {pencils.length > 0 && (
+          {mine.length > 0 && (
             <ul className="list-plain small" style={{ paddingLeft: 0, listStyle: 'none' }}>
-              {pencils.map((p) => (
+              {mine.map((p) => (
                 <li key={p.id} className="row spread">
                   <span>
-                    <span className="dot" style={{ background: p.hex }} aria-hidden="true" />
+                    {p.hex && <span className="dot" style={{ background: p.hex }} aria-hidden="true" />}
                     {p.name} (${p.price})
                   </span>
-                  <button type="button" className="btn small secondary" aria-label={`Remove ${p.name} from my list`} onClick={() => toggleList(p.id)}>Remove</button>
+                  <button type="button" className="btn small secondary" aria-label={`Remove ${p.name} from my list`} onClick={() => removeFromList(p.id)}>Remove</button>
                 </li>
               ))}
             </ul>

@@ -22,7 +22,7 @@ export default function Report() {
 
   return (
     <div className="stack-lg">
-      <TopBar back="#/today" mode={server.mode} right={<button className="btn secondary small no-print" onClick={() => window.print()}><Icon name="print" />Print or save PDF</button>} />
+      <TopBar back="#/today" mode={server.mode} right={<button className="btn secondary small no-print" aria-label="Print or save as PDF" onClick={() => window.print()}><Icon name="print" />Print</button>} />
       <header className="stack">
         <h1>Skin summary for my care team</h1>
         <p>
@@ -38,6 +38,17 @@ export default function Report() {
         <div className="sheet empty">No check-ins yet. Take a check-in and your scores and notes fill in here.</div>
       ) : (
         <>
+          {/* The top bar (and its demo chip) doesn't print, so simulated scores say so on the page itself. */}
+          {rows.some((c) => c.demo) && <div className="banner"><strong>Demo results:</strong> this server has no YouCam API key, so these scores are simulated, not an analysis of real photos.</div>}
+          {shown.length > 0 && (
+            <section aria-labelledby="n">
+              <h2 id="n" style={{ marginBottom: 12 }}>What I’ve noticed</h2>
+              {shown.map((n) => (
+                <NoteCard key={n.id} note={n} />
+              ))}
+            </section>
+          )}
+
           <section className="sheet" aria-labelledby="t">
             <h2 id="t" style={{ marginBottom: 12 }}>Scores over time</h2>
             <div className="tablewrap">
@@ -65,14 +76,6 @@ export default function Report() {
             <p className="fine" style={{ marginTop: 8 }}>Ahead treats changes under 6 raw points as photo-to-photo variation.</p>
           </section>
 
-          {shown.length > 0 && (
-            <section aria-labelledby="n">
-              <h2 id="n" style={{ marginBottom: 12 }}>What I’ve noticed</h2>
-              {shown.map((n) => (
-                <NoteCard key={n.id} note={n} />
-              ))}
-            </section>
-          )}
         </>
       )}
 
@@ -114,9 +117,9 @@ export default function Report() {
         </section>
       )}
 
-      <section className="sheet tint">
-        <h3>Safety signs I know to call about</h3>
-        <ul className="list-plain small" style={{ marginTop: 8 }}>
+      <section className="sheet tint" aria-labelledby="sf">
+        <h2 id="sf" style={{ marginBottom: 12 }}>Safety signs I know to call about</h2>
+        <ul className="list-plain small">
           {RED_FLAGS.map((f) => (
             <li key={f}>{f}</li>
           ))}

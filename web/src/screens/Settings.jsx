@@ -63,6 +63,8 @@ export default function Settings() {
     }
   }
 
+  // saveProfile stores the draft itself, so a save makes the two equal again.
+  const dirty = !!draft && JSON.stringify(draft) !== JSON.stringify(profile);
   const toggle = (k) => setDraft((d) => ({ ...d, treatments: d.treatments.includes(k) ? d.treatments.filter((x) => x !== k) : [...d.treatments, k] }));
 
   return (
@@ -87,8 +89,11 @@ export default function Settings() {
             <span>Name</span>
             <input className="input" value={draft.name || ''} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
           </label>
-          <button className="btn primary" disabled={!draft.startDate} onClick={() => saveProfile(draft).then(() => setMsg('Saved.'))}>Save changes</button>
-          {msg && <p className="fine" role="status">{msg}</p>}
+          {/* While there are unsaved edits, Save docks above the tab bar so it can't be missed. */}
+          <div className={dirty ? 'save-dock stack' : 'stack'}>
+            <button className="btn primary" disabled={!draft.startDate} onClick={() => saveProfile(draft).then(() => setMsg('Saved.'))}>Save changes</button>
+            {(dirty || msg) && <p className="small" role="status">{dirty ? 'Not saved yet. Tap Save changes to keep your edits.' : msg}</p>}
+          </div>
         </section>
       )}
 

@@ -29,7 +29,7 @@ export default function Skin() {
         <section className="sheet">
           <div className="section-title">
             <h2>Trends</h2>
-            <span className="fine">{sameTier.length} check-ins</span>
+            <span className="fine">Higher is healthier</span>
           </div>
           <div className="stack">
             {CONCERNS.map((c) => {
@@ -61,7 +61,7 @@ export default function Skin() {
               const p = treatmentPhase(profile.startDate, new Date(`${c.date}T12:00:00`));
               return (
                 <a key={c.id} href={`#/result/${c.id}`}>
-                  {c.photo ? <img src={c.photo} alt="" /> : <span className="thumb" aria-hidden="true" />}
+                  {c.photo ? <img src={c.photo} alt="" /> : <span className="thumb" aria-hidden="true"><Icon name="skin" /></span>}
                   <span>
                     <strong>{fmt(c.date)}</strong>
                     <span className="fine" style={{ display: 'block' }}>

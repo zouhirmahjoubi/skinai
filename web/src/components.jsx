@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { TREATMENTS, treatmentPhase } from '../../core/treatments.js';
+import { TREATMENTS, treatmentPhase, RED_FLAGS } from '../../core/treatments.js';
 import { STATUS_TEXT } from '../../core/trends.js';
 import { displayScore } from '../../core/concerns.js';
 import { cropToJpeg, faceBrightness, lightLabel, loadImage } from './lib/image.js';
@@ -68,11 +68,20 @@ const TABS = [
 ];
 
 export function TabBar({ path }) {
+  // Publishes the bar's real height (it grows with two-line labels and larger text) for docked controls.
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => document.documentElement.style.setProperty('--tabbar-h', `${el.offsetHeight}px`));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   return (
-    <div className="tabbar">
+    <div className="tabbar" ref={ref}>
       <nav aria-label="Main">
         {TABS.map(([to, icon, label]) => (
-          <a key={to} href={`#${to}`} aria-current={path === to || (to === '/skin' && path === '/checkin') ? 'page' : undefined}>
+          <a key={to} href={`#${to}`} aria-current={path === to || (to === '/skin' && path === '/checkin') || (to === '/look' && path === '/fitting') ? 'page' : undefined}>
             <Icon name={icon} />
             {label}
           </a>
@@ -113,7 +122,8 @@ export function RoadAhead({ profile, checkins }) {
 
   useEffect(() => {
     const el = ref.current?.querySelector('.here');
-    if (el && ref.current) ref.current.scrollLeft = Math.max(0, el.offsetLeft - ref.current.clientWidth / 2 + 29);
+    // Early weeks that already fit stay unscrolled, so "Before" is never cut off.
+    if (el && ref.current) ref.current.scrollLeft = el.offsetLeft + 58 <= ref.current.clientWidth ? 0 : Math.max(0, el.offsetLeft - ref.current.clientWidth / 2 + 29);
   }, [current]);
 
   return (
@@ -167,6 +177,23 @@ export function NoteCard({ note }) {
   );
 }
 
+/** Safety signs that mean calling the care team now: the same list, at reading size, on Today and Result. */
+export function RedFlags({ style }) {
+  return (
+    <details className="sheet" open style={style}>
+      <summary style={{ cursor: 'pointer', fontWeight: 700 }}>
+        <span style={{ color: 'var(--call)' }}>Call your care team now if you notice…</span>
+      </summary>
+      <ul className="list-plain" style={{ marginTop: 12 }}>
+        {RED_FLAGS.map((f) => (
+          <li key={f}>{f}</li>
+        ))}
+      </ul>
+      <p style={{ marginTop: 10 }}>Don’t wait for a check-in. Use the number your treatment centre gave you; in an emergency call your local emergency number.</p>
+    </details>
+  );
+}
+
 // Scores ------------------------------------------------------------------------
 export function Sparkline({ values }) {
   const pts = values.filter((v) => v !== null && v !== undefined);
@@ -187,15 +214,28 @@ export function Sparkline({ values }) {
 export function ScoreRow({ row, pressed, onPress }) {
   const value = displayScore(row.score);
   const status = row.vsBase.status;
+  const trend = (
+    <span className="trend">
+      <span className={`trend-tag ${status}`}>{STATUS_TEXT[status]}</span>
+      {row.vsBase.delta !== null && <span>{row.vsBase.delta > 0 ? '+' : ''}{row.vsBase.delta} since baseline</span>}
+      <Sparkline values={row.history} />
+    </span>
+  );
+  // With no measurement mask to show, the score is plain text, not a toggle that changes nothing.
+  if (!onPress) {
+    return (
+      <div className="score" style={{ cursor: 'default' }}>
+        <span className="name">{row.label}</span>
+        <span className="value">{value ?? '–'}</span>
+        {trend}
+      </div>
+    );
+  }
   return (
     <button type="button" className="score" aria-pressed={pressed} onClick={onPress}>
       <span className="name">{row.label}</span>
       <span className="value" aria-label={`score ${value ?? 'not measured'}`}>{value ?? '–'}</span>
-      <span className="trend">
-        <span className={`trend-tag ${status}`}>{STATUS_TEXT[status]}</span>
-        {row.vsBase.delta !== null && <span>{row.vsBase.delta > 0 ? '+' : ''}{row.vsBase.delta} since baseline</span>}
-        <Sparkline values={row.history} />
-      </span>
+      {trend}
     </button>
   );
 }
@@ -277,8 +317,8 @@ export function CompareSlider({ before, after, beforeLabel = 'You today', afterL
       <img src={before} alt={beforeLabel} />
       <img src={after} alt={afterLabel} className="after" />
       <span className="handle" aria-hidden="true" />
-      <span className="tag" style={{ left: 12 }}>{beforeLabel}</span>
-      <span className="tag" style={{ right: 12 }}>{afterLabel}</span>
+      <span className="tag" style={{ left: 12 }} aria-hidden="true">{beforeLabel}</span>
+      <span className="tag" style={{ right: 12 }} aria-hidden="true">{afterLabel}</span>
       <input
         className="sr-only"
         type="range"
@@ -286,7 +326,8 @@ export function CompareSlider({ before, after, beforeLabel = 'You today', afterL
         max="100"
         value={Math.round(split)}
         onChange={(e) => setSplit(Number(e.target.value))}
-        aria-label="Drag to compare before and after"
+        aria-label={`Compare ${beforeLabel} with ${afterLabel}`}
+        aria-valuetext={`${Math.round(split)}% ${beforeLabel}, ${100 - Math.round(split)}% ${afterLabel}`}
       />
     </div>
   );
@@ -375,6 +416,7 @@ export function Capture({ mode = 'face', ghost, maxLong = 2560, onCapture, cta =
   const box = useRef(null);
   const video = useRef(null);
   const fileInput = useRef(null);
+  const primary = useRef(null);
   const streamRef = useRef(null);
   const starting = useRef(false);
   const alive = useRef(true);
@@ -433,6 +475,11 @@ export function Capture({ mode = 'face', ghost, maxLong = 2560, onCapture, cta =
       video.current.srcObject = streamRef.current;
       video.current.play().catch(() => {});
     }
+  }, [state]);
+
+  // "Use camera" unmounts once the camera opens; keep focus on the shutter instead of losing it.
+  useEffect(() => {
+    if (state === 'camera') primary.current?.focus();
   }, [state]);
 
   // Live light reading while the camera is open.
@@ -526,13 +573,13 @@ export function Capture({ mode = 'face', ghost, maxLong = 2560, onCapture, cta =
         {state === 'frame' && upload && (
           <img className="frame-img" src={upload.src} alt="Your photo" draggable="false" style={{ transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.zoom})`, objectFit: 'cover' }} />
         )}
-        {state === 'choose' && (
-          <div className="frame-img" style={{ display: 'grid', placeItems: 'center', color: '#d9d2f0', padding: 24, textAlign: 'center' }}>
-            <p>{mode === 'face' ? 'Your face will go in the oval.' : mode === 'portrait' ? 'Head and shoulders, hair down.' : 'One item, filling most of the picture.'}</p>
-          </div>
-        )}
         {ghost && showGhost && state !== 'choose' && <img className={`ghost${state === 'camera' ? ' mirror' : ''}`} src={ghost} alt="" style={ghostStyle} />}
         <Guide mode={mode} />
+        {state === 'choose' && (
+          <div className="light" style={{ top: 'auto', bottom: 12 }}>
+            <span className="light-pill" style={{ textAlign: 'center' }}>{mode === 'face' ? 'Your face will go in the oval.' : mode === 'portrait' ? 'Head and shoulders, hair down.' : 'One item, filling most of the picture.'}</span>
+          </div>
+        )}
         {state === 'camera' && mode !== 'product' && (
           <div className="light" aria-live="polite">
             <span className={`light-pill ${lightInfo.tone}`}>{lightInfo.text}</span>
@@ -564,11 +611,11 @@ export function Capture({ mode = 'face', ghost, maxLong = 2560, onCapture, cta =
           <input type="checkbox" checked={showGhost} onChange={(e) => setShowGhost(e.target.checked)} />
         </label>
       )}
-      {camError && <div className="banner">{camError}</div>}
+      {camError && <div className="banner" role="alert">{camError}</div>}
 
       <div className="row wrap">
         {state === 'camera' && (
-          <button className="btn primary block" onClick={snap} disabled={busy}>
+          <button ref={primary} className="btn primary block" onClick={snap} disabled={busy}>
             <Icon name="camera" />
             {cta}
           </button>

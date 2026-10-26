@@ -30,6 +30,8 @@
   --shadow: 0 1px 0 rgba(38, 29, 51, 0.06);
   --font-body: 'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-display: 'Literata', Georgia, 'Times New Roman', serif;
+  /* Room kept clear of the fixed tab bar (two-line labels included); grows with the text size. */
+  --tabbar-reserve: calc(66px + 2.4rem + env(safe-area-inset-bottom));
   color-scheme: light;
 }
 
@@ -59,13 +61,13 @@
 }
 
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: 1rem; scroll-padding-bottom: var(--tabbar-reserve); }
 body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-body);
-  font-size: 17px;
+  font-size: 1.0625rem;
   line-height: 1.5;
 }
 img { max-width: 100%; display: block; }
@@ -89,7 +91,7 @@ p { margin: 0; }
 main h1[tabindex='-1']:focus, main h2[tabindex='-1']:focus { outline: none; }
 
 /* App frame ---------------------------------------------------------------- */
-.app { max-width: 560px; margin: 0 auto; padding: 20px 16px calc(104px + env(safe-area-inset-bottom)); min-height: 100vh; }
+.app { max-width: 560px; margin: 0 auto; padding: 20px 16px var(--tabbar-reserve); min-height: 100vh; }
 .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; min-height: 44px; }
 .wordmark { font-family: var(--font-display); font-weight: 600; font-size: 1.35rem; display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--ink); }
 .wordmark svg { width: 28px; height: 28px; }
@@ -106,7 +108,7 @@ main h1[tabindex='-1']:focus, main h2[tabindex='-1']:focus { outline: none; }
   padding-bottom: env(safe-area-inset-bottom);
 }
 .tabbar nav { max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); }
-.tabbar a { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px 12px; text-decoration: none; color: var(--ink-2); font-size: 0.8rem; }
+.tabbar a { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px 12px; text-decoration: none; color: var(--ink-2); font-size: 0.8rem; text-align: center; }
 .tabbar a svg { width: 24px; height: 24px; }
 .tabbar a[aria-current='page'] { color: var(--accent); font-weight: 700; }
 
@@ -125,9 +127,10 @@ main h1[tabindex='-1']:focus, main h2[tabindex='-1']:focus { outline: none; }
 .btn.quiet { background: transparent; color: var(--accent); padding: 0 10px; }
 .btn.block { width: 100%; }
 .btn.small { min-height: 40px; padding: 0 14px; font-size: 0.95rem; }
-.btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.btn[disabled], .btn[aria-disabled='true'] { opacity: 0.5; cursor: not-allowed; }
 .btn svg { width: 20px; height: 20px; flex: none; }
-.row.wrap > .btn { flex: 1 1 140px; padding: 0 14px; white-space: nowrap; }
+/* A label stays on one line while it fits the row, and wraps inside the button once it doesn't. */
+.row.wrap > .btn { flex: 1 1 140px; padding: 8px 14px; white-space: normal; min-width: fit-content; text-align: center; }
 
 /* Forms ------------------------------------------------------------------- */
 .field { display: block; }
@@ -199,8 +202,8 @@ input[type='range'] { width: 100%; accent-color: var(--accent); min-height: 32px
 /* Capture ----------------------------------------------------------------- */
 .capture { position: relative; border-radius: var(--r-sheet); overflow: hidden; background: #000; aspect-ratio: 3 / 4; }
 .capture.framing { touch-action: none; }
-/* Short phones: keep the capture buttons above the tab bar. */
-@media (max-height: 700px) { .capture { width: min(100%, calc(46svh * 3 / 4)); margin-inline: auto; } }
+/* Keep the capture and preview buttons above the tab bar on phones and laptops. */
+@media (max-height: 940px) { .capture, .photo.preview { width: min(100%, calc(40svh * 3 / 4)); margin-inline: auto; } }
 .capture video, .capture .frame-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .capture .ghost { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.28; pointer-events: none; }
 .capture .guide { position: absolute; inset: 0; pointer-events: none; }
@@ -224,6 +227,8 @@ input[type='range'] { width: 100%; accent-color: var(--accent); min-height: 32px
 .product { display: grid; grid-template-columns: 64px 1fr; gap: 14px; padding: 14px; border-radius: var(--r-ctl); background: var(--surface); border: 1px solid var(--line); }
 .product + .product { margin-top: 10px; }
 .product .pack { width: 64px; height: 80px; border-radius: 12px 12px 18px 18px; display: grid; place-items: end center; padding-bottom: 8px; font-size: 0.7rem; font-weight: 700; color: var(--ink-2); background: var(--tint); }
+/* Narrow phones: the category becomes a small pill above the name, so names and reasons get the width. */
+@media (max-width: 360px) { .product { grid-template-columns: 1fr; gap: 8px; } .product .pack { width: auto; height: auto; justify-self: start; padding: 2px 10px; border-radius: 999px; font-size: 0.85rem; place-items: center; } }
 .product .line { font-size: 0.85rem; color: var(--ink-2); }
 .product .price { font-weight: 700; }
 .reasons { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
@@ -232,9 +237,10 @@ input[type='range'] { width: 100%; accent-color: var(--accent); min-height: 32px
 .reasons li.caution { background: var(--watch-bg); color: var(--watch); }
 details.inci summary { cursor: pointer; font-size: 0.9rem; color: var(--accent); font-weight: 700; margin-top: 8px; }
 details.inci p { font-size: 0.85rem; color: var(--ink-2); margin-top: 6px; }
-mark { background: var(--watch-bg); color: var(--ink); border-radius: 4px; padding: 0 2px; }
-mark.good { background: var(--good-bg); }
-mark.avoid { background: var(--call-bg); }
+/* Flagged ingredients are bold in the status colour, not only tinted; helpers stay regular weight. */
+mark { background: var(--watch-bg); color: var(--watch); font-weight: 700; border-radius: 4px; padding: 0 2px; }
+mark.avoid { background: var(--call-bg); color: var(--call); }
+mark.good { background: var(--good-bg); color: var(--ink); font-weight: 400; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { font-size: 0.85rem; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); }
 .chip.avoid { border-color: var(--call); color: var(--call); }
@@ -242,9 +248,9 @@ mark.avoid { background: var(--call-bg); }
 button.chip { min-height: 40px; padding: 6px 14px; cursor: pointer; }
 .chip[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
 .chip[aria-pressed='true']::before { content: '\2713\00a0'; }
-.chip-dot { display: inline-block; width: 12px; height: 12px; border-radius: 6px; margin-right: 6px; vertical-align: -1px; border: 1px solid rgba(0, 0, 0, 0.2); }
+.chip-dot { display: inline-block; width: 12px; height: 12px; border-radius: 6px; margin-right: 6px; vertical-align: -1px; border: 1px solid color-mix(in srgb, var(--ink) 45%, transparent); }
 .chip[aria-pressed='true'] .chip-dot { box-shadow: 0 0 0 2px var(--accent-ink); }
-.dot { display: inline-block; width: 14px; height: 14px; border-radius: 7px; vertical-align: -2px; margin-right: 6px; border: 1px solid rgba(0, 0, 0, 0.2); }
+.dot { display: inline-block; width: 14px; height: 14px; border-radius: 7px; vertical-align: -2px; margin-right: 6px; border: 1px solid color-mix(in srgb, var(--ink) 45%, transparent); }
 
 /* Look -------------------------------------------------------------------- */
 .swatches { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -254,27 +260,31 @@ button.chip { min-height: 40px; padding: 6px 14px; cursor: pointer; }
 .swatch strong { display: block; font-size: 0.95rem; }
 .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .fact { padding: 12px; border-radius: var(--r-ctl); background: var(--tint); }
-.fact span { display: block; font-size: 0.85rem; color: var(--ink-2); }
+.fact > span { display: block; font-size: 0.85rem; color: var(--ink-2); }
 .fact strong { font-size: 1.05rem; }
 .styles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.style { border-radius: var(--r-ctl); overflow: hidden; border: 1px solid var(--line); background: var(--surface); padding: 0; cursor: pointer; text-align: left; }
+.style { display: flex; flex-direction: column; border-radius: var(--r-ctl); overflow: hidden; border: 1px solid var(--line); background: var(--surface); padding: 0; cursor: pointer; text-align: left; }
 .style[aria-pressed='true'] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
 .style img, .style .ph { aspect-ratio: 3 / 4; width: 100%; object-fit: cover; background: var(--tint); }
 .style .ph { display: grid; place-items: center; color: var(--mark); }
 .style .ph svg { width: 46%; }
 .style span { display: block; padding: 6px 8px; font-size: 0.82rem; line-height: 1.25; }
 .compare { position: relative; border-radius: var(--r-sheet); overflow: hidden; aspect-ratio: 3 / 4; background: var(--tint); user-select: none; touch-action: pan-y; }
+.compare:has(input:focus-visible) { outline: 3px solid var(--focus); outline-offset: 2px; }
 .compare img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .compare .after { clip-path: inset(0 0 0 var(--split, 50%)); }
 .compare .handle { position: absolute; top: 0; bottom: 0; left: var(--split, 50%); width: 0; border-left: 3px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2); }
 .compare .handle::after { content: ''; position: absolute; top: 50%; left: -19px; width: 34px; height: 34px; margin-top: -17px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3); }
 .compare .tag { position: absolute; top: 12px; padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.9); color: #261d33; font-size: 0.8rem; font-weight: 700; }
-.gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .gallery figure { margin: 0; position: relative; }
 .gallery img { aspect-ratio: 3 / 4; object-fit: cover; border-radius: 12px; width: 100%; }
 .gallery figcaption { font-size: 0.8rem; color: var(--ink-2); margin-top: 4px; }
+.gallery figcaption.row { flex-direction: column; align-items: flex-start; gap: 0; }
+.gallery .linkish { min-height: 44px; }
 
 /* Misc ---------------------------------------------------------------------- */
+.save-dock { position: sticky; bottom: var(--tabbar-h, calc(var(--tabbar-reserve) - 12px)); z-index: 10; margin: 0 -20px -20px; padding: 12px 20px 16px; background: var(--surface); border-top: 1px solid var(--line); border-radius: 0 0 var(--r-sheet) var(--r-sheet); }
 .banner { padding: 12px 14px; border-radius: var(--r-ctl); background: var(--watch-bg); color: var(--ink); font-size: 0.95rem; }
 .banner.info { background: var(--info-bg); }
 .error-box { padding: 14px; border-radius: var(--r-ctl); background: var(--call-bg); }
@@ -284,6 +294,8 @@ button.chip { min-height: 40px; padding: 6px 14px; cursor: pointer; }
 .history { display: grid; gap: 8px; }
 .history a { display: grid; grid-template-columns: 56px 1fr auto; gap: 12px; align-items: center; padding: 10px; border-radius: var(--r-ctl); background: var(--surface); border: 1px solid var(--line); text-decoration: none; color: var(--ink); }
 .history img, .history .thumb { width: 56px; height: 70px; border-radius: 10px; object-fit: cover; background: var(--tint); }
+.history .thumb { display: grid; place-items: center; color: var(--mark); }
+.history .thumb svg { width: 28px; height: 28px; }
 .hero-week { font-family: var(--font-display); font-size: 2.6rem; font-weight: 600; line-height: 1; }
 .fine { font-size: 0.85rem; color: var(--ink-2); }
 .center { text-align: center; }
@@ -303,7 +315,12 @@ table.grid th:first-child, table.grid td:first-child { text-align: left; }
   body { font-size: 12pt; }
   .tabbar, .topbar, .no-print { display: none !important; }
   .app { max-width: none; padding: 0; min-height: 0; }
-  .sheet { box-shadow: none; break-inside: avoid; }
+  .sheet, .note { box-shadow: none; break-inside: avoid; }
+  /* A long table may split across pages, a row at a time, rather than leave a page half empty. */
+  .sheet:has(table) { break-inside: auto; }
+  tr { break-inside: avoid; }
+  .save-dock { position: static; }
+  h2 { break-after: avoid; }
   /* Colour samples and status tints carry meaning: print them even with background graphics off. */
   .dot, .chip-dot, .note, .sheet.tint, .swatch .chipcolor { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   a { color: inherit; text-decoration: none; }
