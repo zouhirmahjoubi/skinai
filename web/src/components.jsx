@@ -3,6 +3,7 @@ import { TREATMENTS, treatmentPhase, RED_FLAGS } from '../../core/treatments.js'
 import { STATUS_TEXT } from '../../core/trends.js';
 import { displayScore } from '../../core/concerns.js';
 import { cropToJpeg, faceBrightness, lightLabel, loadImage } from './lib/image.js';
+import { reducedMotion } from './lib/motion.js';
 
 // Icons ---------------------------------------------------------------------
 const paths = {
@@ -77,16 +78,53 @@ export function TabBar({ path }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  const current = (to) => path === to || (to === '/skin' && path === '/checkin') || (to === '/look' && path === '/fitting');
+  const at = TABS.findIndex(([to]) => current(to));
   return (
     <div className="tabbar" ref={ref}>
       <nav aria-label="Main">
+        <span className="tab-pill" aria-hidden="true" hidden={at < 0} style={{ '--i': Math.max(at, 0) }} />
         {TABS.map(([to, icon, label]) => (
-          <a key={to} href={`#${to}`} aria-current={path === to || (to === '/skin' && path === '/checkin') || (to === '/look' && path === '/fitting') ? 'page' : undefined}>
+          <a key={to} href={`#${to}`} aria-current={current(to) ? 'page' : undefined}>
             <Icon name={icon} />
             {label}
           </a>
         ))}
       </nav>
+    </div>
+  );
+}
+
+/**
+ * The slow three.js background. three.js loads after the first paint, only
+ * when transparency is wanted; until then (or without WebGL) a still CSS
+ * gradient shows. Reduced motion gets a single still frame.
+ */
+export function Ambient() {
+  const ref = useRef(null);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (window.matchMedia?.('(prefers-reduced-transparency: reduce)').matches) return;
+    let stop = null;
+    let cancelled = false;
+    const later = window.requestIdleCallback || ((fn) => setTimeout(fn, 300));
+    later(() =>
+      import('./lib/ambient.js')
+        .then(({ startAmbient }) => {
+          if (cancelled || !ref.current) return;
+          stop = startAmbient(ref.current, { still: reducedMotion() });
+          if (stop) setReady(true);
+        })
+        .catch(() => {}),
+    );
+    return () => {
+      cancelled = true;
+      stop?.();
+    };
+  }, []);
+  return (
+    <div className={`ambient${ready ? ' ready' : ''}`} aria-hidden="true">
+      <canvas ref={ref} />
     </div>
   );
 }
@@ -180,7 +218,7 @@ export function NoteCard({ note }) {
 /** Safety signs that mean calling the care team now: the same list, at reading size, on Today and Result. */
 export function RedFlags({ style }) {
   return (
-    <details className="sheet" open style={style}>
+    <details className="sheet" open style={style} data-still>
       <summary style={{ cursor: 'pointer', fontWeight: 700 }}>
         <span style={{ color: 'var(--call)' }}>Call your care team now if you notice…</span>
       </summary>

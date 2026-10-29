@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useStore, useRoute } from './lib/store.jsx';
-import { TabBar } from './components.jsx';
+import { TabBar, Ambient } from './components.jsx';
+import { enterScreen } from './lib/motion.js';
 import Welcome from './screens/Welcome.jsx';
 import Today from './screens/Today.jsx';
 import Skin from './screens/Skin.jsx';
@@ -41,6 +42,14 @@ export default function App() {
   const route = useRoute();
   const onboarding = !profile && route.path !== '/settings';
   const firstView = useRef(true);
+  const mainRef = useRef(null);
+
+  // Each screen arrives with a short staggered fade-up, set before paint so nothing flashes.
+  // Welcome runs its own sequence, since its steps share one route.
+  useLayoutEffect(() => {
+    if (!ready || onboarding) return;
+    return enterScreen(mainRef.current);
+  }, [ready, onboarding, route.path, route.param]);
 
   // Name each screen and move focus to its heading, so screen readers hear the change.
   useEffect(() => {
@@ -59,9 +68,12 @@ export default function App() {
 
   if (!ready) {
     return (
-      <main className="app">
-        <p className="muted center" style={{ marginTop: '40vh' }}>Opening your journal…</p>
-      </main>
+      <>
+        <Ambient />
+        <main className="app">
+          <p className="muted center" style={{ marginTop: '40vh' }}>Opening your journal…</p>
+        </main>
+      </>
     );
   }
 
@@ -69,7 +81,8 @@ export default function App() {
 
   return (
     <>
-      <main className="app">
+      <Ambient />
+      <main className="app" ref={mainRef}>
         <Screen param={route.param} />
       </main>
       {!onboarding && <TabBar path={route.path} />}

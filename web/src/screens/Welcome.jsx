@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useStore, go } from '../lib/store.jsx';
-import { Logo } from '../components.jsx';
+import { enterScreen } from '../lib/motion.js';
+import Landing from './Landing.jsx';
 import { TREATMENTS, TREATMENT_KEYS } from '../../../core/treatments.js';
 import { today } from '../lib/db.js';
 
@@ -30,6 +31,10 @@ export default function Welcome() {
     }
   }, [step]);
 
+  // The landing runs its own scroll story; each setup step fades up like any other screen.
+  const rootRef = useRef(null);
+  useLayoutEffect(() => (step === 0 ? undefined : enterScreen(rootRef.current)), [step]);
+
   const toggle = (k) => setTreatments((t) => (t.includes(k) ? t.filter((x) => x !== k) : [...t, k]));
 
   async function finish() {
@@ -44,32 +49,18 @@ export default function Welcome() {
 
   if (step === 0) {
     return (
-      <div className="stack-lg">
-        <div className="wordmark" style={{ marginTop: 8 }}>
-          <Logo />
-          Ahead
-        </div>
-        <div className="stack">
-          <h1>Treatment changes how your skin, hair and brows look. Ahead helps you stay a step ahead of it.</h1>
-          <p className="muted">Try wigs, brows and hats on yourself before your hair changes. Each week, a selfie shows which skin changes are real, when to call your care team, and which products are safe right now.</p>
-        </div>
-        {isIOS && !standalone && <p className="small">On iPhone, Safari can clear websites you haven’t opened for a week. Add Ahead to your Home Screen first (Share, then Add to Home Screen) and set it up from there.</p>}
-        <div className="stack">
-          <button className="btn primary block" onClick={() => setStep(1)}>Set up Ahead</button>
-          <button className="btn secondary block" onClick={sample}>Explore a sample journey first</button>
-          {server.mode === 'demo' && <p className="fine center">This server has no YouCam key, so analysis shows demo results.</p>}
-        </div>
-        <div className="sheet tint stack">
-          <h3>Private by design</h3>
-          <p>Your photos and history stay on this device, not on our server. Photos go to the YouCam analysis service only when you ask for a check-in or try-on.</p>
-        </div>
-      </div>
+      <Landing
+        onStart={() => setStep(1)}
+        onSample={sample}
+        demo={server.mode === 'demo'}
+        iosNote={isIOS && !standalone && <p className="small">On iPhone, Safari can clear websites you haven’t opened for a week. Add Ahead to your Home Screen first (Share, then Add to Home Screen) and set it up from there.</p>}
+      />
     );
   }
 
   if (step === 1) {
     return (
-      <div className="stack-lg">
+      <div className="stack-lg" ref={rootRef}>
         <div className="stack">
           <p className="muted">Step 1 of 3</p>
           <h1>Which treatments are you having?</h1>
@@ -98,7 +89,7 @@ export default function Welcome() {
 
   if (step === 2) {
     return (
-      <div className="stack-lg">
+      <div className="stack-lg" ref={rootRef}>
         <div className="stack">
           <p className="muted">Step 2 of 3</p>
           <h1>When does treatment start?</h1>
@@ -121,7 +112,7 @@ export default function Welcome() {
   }
 
   return (
-    <div className="stack-lg">
+    <div className="stack-lg" ref={rootRef}>
       <div className="stack">
         <p className="muted">Step 3 of 3</p>
         <h1>Before you start</h1>
