@@ -50,7 +50,7 @@ export function enterScreen(root) {
 /**
  * The welcome landing, after Ondine's "Scrolltide": the hero (the portrait with
  * its scan) assembles on load, then scroll drives the rest. How-it-works steps light up as they cross the
- * middle of the screen while a rail fills beside them and labels pop onto the
+ * middle of the screen while a rail fills beside them and cards pop onto the
  * arch; the promise darkens word by word. getOrb() lets scroll turn the orb.
  * With reduced motion everything is simply shown, fully lit.
  */
@@ -58,7 +58,7 @@ export function landingStory(root, getOrb) {
   if (!root) return () => {};
   const q = gsap.utils.selector(root);
   const steps = q('.rail-step');
-  const labels = q('.arch-label');
+  const labels = q('.arch-card');
   const light = (upTo) => {
     steps.forEach((s, i) => s.classList.toggle('on', i <= upTo));
     labels.forEach((l, i) => l.classList.toggle('on', i <= upTo));

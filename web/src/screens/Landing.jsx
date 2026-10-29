@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Logo, PaletteSwitcher } from '../components.jsx';
+import { Icon, Logo, PaletteSwitcher, Sparkline } from '../components.jsx';
 import { landingStory, reducedMotion } from '../lib/motion.js';
+import { sampleJourney } from '../../../core/sample.js';
 
 // The first screen: a short scroll story (hero, how it works, our promise)
 // before setup. Everything decorative is aria-hidden; the text reads in order.
@@ -18,11 +19,12 @@ const STEPS = [
   { n: '03', title: 'Check in', body: 'A weekly selfie shows which skin changes are real.' },
 ];
 
-const ARCH_LABELS = [
-  { text: 'Hair colour saved', x: '14%', y: '20%' },
-  { text: 'Wig preview ready', x: '46%', y: '42%' },
-  { text: 'Calm skin steady', x: '12%', y: '64%' },
-  { text: 'Summary ready', x: '40%', y: '82%' },
+// The Print card shows the sample journey's measured hair, brow and skin colours.
+const PRINT = sampleJourney().print.colors;
+const PRINT_DOTS = [
+  { name: 'Hair', hex: PRINT.hair_color },
+  { name: 'Brows', hex: PRINT.eyebrow_color },
+  { name: 'Skin', hex: PRINT.skin_color },
 ];
 
 // The promise, as words; '*' marks an accent word, '•' an image pill.
@@ -241,11 +243,49 @@ export default function Landing({ onStart, onSample, demo, iosNote, returning = 
           <div className="arch">
             <div className="arch-fill" />
             <Orb orbRef={orbRef} />
-            {ARCH_LABELS.map((l) => (
-              <span key={l.text} className="arch-label" style={{ '--x': l.x, '--y': l.y }}>
-                {l.text}
+            {/* One small card per step, lit as its step crosses the screen (motion.js). */}
+            <div className="arch-card" style={{ '--x': '8%', '--y': '23%' }}>
+              <span className="card-kicker">Your print</span>
+              <span className="card-dots">
+                {PRINT_DOTS.map((dot) => (
+                  <span key={dot.name}>
+                    <span style={{ background: dot.hex }} />
+                    {dot.name}
+                  </span>
+                ))}
               </span>
-            ))}
+            </div>
+            <div className="arch-card" style={{ '--x': '42%', '--y': '40%' }}>
+              <span className="card-kicker">Try on</span>
+              <span className="card-row">
+                <span className="card-thumb">
+                  <Icon name="look" />
+                </span>
+                <span>
+                  <strong>Sleek bob</strong>
+                  <small>Tried on at home</small>
+                </span>
+              </span>
+            </div>
+            <div className="arch-card" style={{ '--x': '6%', '--y': '57%' }}>
+              <span className="card-kicker">Check-in, week 3</span>
+              <span className="card-row">
+                <span>
+                  <strong>Calm skin 72</strong>
+                  <small>Steady</small>
+                </span>
+                <Sparkline values={[66, 68, 67, 70, 72]} />
+              </span>
+            </div>
+            <div className="arch-card" style={{ '--x': '42%', '--y': '75%' }}>
+              <span className="card-kicker">Care-team summary</span>
+              <strong className="card-title">3 questions ready</strong>
+              <span className="card-lines">
+                <span />
+                <span />
+                <span />
+              </span>
+            </div>
           </div>
         </div>
       </section>
