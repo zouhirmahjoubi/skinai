@@ -399,7 +399,7 @@ table.grid th:first-child, table.grid td:first-child { text-align: left; }
 .landing { margin-inline: calc((100% - min(1120px, 100vw - 32px)) / 2); overflow-x: clip; }
 .landing > section { margin-top: 88px; }
 .landing > .hero { margin-top: 12px; }
-.land-top { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
+.land-top { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
 .land-top .linkish { min-height: 44px; }
 .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
 .eyebrow::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--mark); flex: none; }
@@ -412,7 +412,9 @@ table.grid th:first-child, table.grid td:first-child { text-align: left; }
 .hero-title { margin-top: 18px; font-family: var(--font-body); font-weight: 400; font-size: clamp(2.5rem, 10vw, 4.6rem); line-height: 1.04; letter-spacing: -0.03em; }
 .hero-line { display: block; }
 .hero-line.accent { padding-left: 0.6em; letter-spacing: -0.01em; }
-.hero-visual { grid-area: visual; position: relative; width: min(100%, 520px); aspect-ratio: 1; margin-inline: auto; }
+/* Decorative only, and its canvas reaches past its box for the rings: it must never catch clicks
+   meant for the links around it. The orb follows the mouse through window events instead. */
+.hero-visual { grid-area: visual; position: relative; width: min(100%, 520px); aspect-ratio: 1; margin-inline: auto; pointer-events: none; }
 .hero-big { grid-area: big; justify-self: end; margin-top: 0; font-size: clamp(3.6rem, 19vw, 7.5rem); line-height: 0.9; letter-spacing: -0.045em; }
 .hero-body { grid-area: body; max-width: 34rem; }
 .hero-cta { grid-area: cta; display: grid; gap: 14px; }
