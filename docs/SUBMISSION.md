@@ -70,4 +70,4 @@ YouCam API (AI Skin Analysis, Facial Color Tones Analyzer, Face Attributes & Rat
 
 ## Testing instructions
 
-See "Testing instructions for judges" in the README. Live demo: `<deployed URL>/?code=<access code>` (fill in after deploying).
+See "Testing instructions for judges" in the README. Live demo: `https://ahead-skinai.onrender.com/?code=<access code>`. It runs on a free instance that sleeps when idle, so the first load can take about a minute.
