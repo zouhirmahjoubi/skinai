@@ -84,10 +84,20 @@ function Orb({ orbRef }) {
   );
 }
 
-export default function Landing({ onStart, onSample, demo, iosNote }) {
+/**
+ * `returning`: reopened from Settings after setup. The main button goes back to
+ * the journal, and the sample buttons are left out (loading the sample replaces the journal).
+ */
+export default function Landing({ onStart, onSample, demo, iosNote, returning = false }) {
   const root = useRef(null);
   const orbRef = useRef(null);
   useLayoutEffect(() => landingStory(root.current, () => orbRef.current), []);
+  const startLabel = returning ? 'Open my journal' : 'Set up Ahead';
+  const sampleButton = !returning && (
+    <button className="btn secondary" onClick={onSample}>
+      Explore a sample journey first
+    </button>
+  );
 
   return (
     <div className="landing" ref={root}>
@@ -96,8 +106,8 @@ export default function Landing({ onStart, onSample, demo, iosNote }) {
           <Logo />
           Ahead
         </div>
-        <button type="button" className="linkish" onClick={onSample}>
-          See a sample
+        <button type="button" className="linkish" onClick={returning ? onStart : onSample}>
+          {returning ? 'Open my journal' : 'See a sample'}
         </button>
       </header>
 
@@ -166,14 +176,12 @@ export default function Landing({ onStart, onSample, demo, iosNote }) {
         <div className="hero-cta" data-rise>
           <div className="cta-row">
             <button className="btn primary cta" onClick={onStart}>
-              Set up Ahead
+              {startLabel}
               <span className="cta-arrow">
                 <Arrow />
               </span>
             </button>
-            <button className="btn secondary" onClick={onSample}>
-              Explore a sample journey first
-            </button>
+            {sampleButton}
           </div>
           <p className="trust">
             <Lock /> Your photos and history stay on this device.
@@ -254,14 +262,12 @@ export default function Landing({ onStart, onSample, demo, iosNote }) {
         </h2>
         <div className="cta-row">
           <button className="btn primary cta" onClick={onStart}>
-            Set up Ahead
+            {startLabel}
             <span className="cta-arrow">
               <Arrow />
             </span>
           </button>
-          <button className="btn secondary" onClick={onSample}>
-            Explore a sample journey first
-          </button>
+          {sampleButton}
         </div>
         <div className="sheet tint stack">
           <h3>Private by design</h3>

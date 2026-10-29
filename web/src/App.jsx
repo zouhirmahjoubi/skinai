@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
-import { useStore, useRoute } from './lib/store.jsx';
+import { useStore, useRoute, go } from './lib/store.jsx';
 import { TabBar, Ambient } from './components.jsx';
 import { enterScreen } from './lib/motion.js';
 import Welcome from './screens/Welcome.jsx';
@@ -12,6 +12,13 @@ import Look from './screens/Look.jsx';
 import Report from './screens/Report.jsx';
 import FittingSheet from './screens/FittingSheet.jsx';
 import Settings from './screens/Settings.jsx';
+import Landing from './screens/Landing.jsx';
+
+// The welcome page, reopened after setup: the main button returns to the journal,
+// and the sample buttons are left out because loading the sample replaces the journal.
+function WelcomeAgain() {
+  return <Landing returning onStart={() => go('/today')} />;
+}
 
 const SCREENS = {
   '/today': Today,
@@ -23,6 +30,7 @@ const SCREENS = {
   '/report': Report,
   '/fitting': FittingSheet,
   '/settings': Settings,
+  '/welcome': WelcomeAgain,
 };
 
 const TITLES = {
@@ -35,21 +43,28 @@ const TITLES = {
   '/report': 'Care-team summary',
   '/fitting': 'Fitting sheet',
   '/settings': 'Settings',
+  '/welcome': 'Welcome',
 };
 
 export default function App() {
   const { ready, profile } = useStore();
   const route = useRoute();
   const onboarding = !profile && route.path !== '/settings';
+  // The welcome page is a full-width scroll story, so it opens at the top and without the tab bar.
+  const landing = onboarding || route.path === '/welcome';
   const firstView = useRef(true);
   const mainRef = useRef(null);
 
   // Each screen arrives with a short staggered fade-up, set before paint so nothing flashes.
-  // Welcome runs its own sequence, since its steps share one route.
+  // The welcome page runs its own sequence.
   useLayoutEffect(() => {
-    if (!ready || onboarding) return;
+    if (!ready) return;
+    if (landing) {
+      if (route.path === '/welcome') window.scrollTo(0, 0);
+      return;
+    }
     return enterScreen(mainRef.current);
-  }, [ready, onboarding, route.path, route.param]);
+  }, [ready, landing, route.path, route.param]);
 
   // Name each screen and move focus to its heading, so screen readers hear the change.
   useEffect(() => {
@@ -85,7 +100,7 @@ export default function App() {
       <main className="app" ref={mainRef}>
         <Screen param={route.param} />
       </main>
-      {!onboarding && <TabBar path={route.path} />}
+      {!landing && <TabBar path={route.path} />}
     </>
   );
 }

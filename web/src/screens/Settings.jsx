@@ -130,6 +130,12 @@ export default function Settings() {
         {dataMsg && <p className="fine" role="status">{dataMsg}</p>}
       </section>
 
+      <section className="sheet stack" aria-labelledby="about">
+        <h2 id="about">About Ahead</h2>
+        <p className="small">See the welcome page again: what Ahead does and how it works. Your journal stays as it is.</p>
+        <a className="btn secondary" href="#/welcome">Open the welcome page</a>
+      </section>
+
       <section className="stack fine">
         <p>Ahead is a self-tracking tool, not a medical device, and doesn’t diagnose or treat any condition. Always follow your care team’s advice.</p>
         <p>Skin, colour, face, hairstyle, hat and makeup analysis by the YouCam API (Perfect Corp.).</p>
