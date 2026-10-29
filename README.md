@@ -2,6 +2,8 @@
 
 **Skin, hair and brow care through cancer treatment, built on the YouCam API.**
 
+**Live demo:** https://ahead-skinai.onrender.com (the access code is in the submission).
+
 Most people starting chemotherapy, radiation or targeted therapy are told their skin, hair and brows will change. Very few are told what that will look like, which changes matter, or what is safe to buy. Ahead is a mobile web app for that moment:
 
 - **Hair & Brow Print.** Before hair changes, one selfie records hair colour family, brow colour, brow shape, brow thickness and face shape, using YouCam Facial Color Tones and Face Attributes analysis.
@@ -130,7 +132,7 @@ Deploy: `render.yaml` is a one-click Render blueprint. Any Node host works: buil
 
 ## Testing instructions for judges
 
-1. Open the deployed link from the submission (it includes the access code). Locally, run `npm run dev`.
+1. Open https://ahead-skinai.onrender.com with the access code from the submission (`/?code=...`). It runs on a free instance that sleeps when idle, so the first load can take about a minute. Locally, run `npm run dev`.
 2. Tap **Explore a sample journey first**. On **Today**, the road-ahead timeline shows week 3 of an EGFR-inhibitor + chemotherapy course.
 3. Open **Details** on the red note: the falling "Clear skin" score is read as the EGFR rash, with care-team guidance. Then open **Shelf**: benzoyl peroxide, salicylic acid and fragranced products sit under *Not right now* with reasons, and the acne gel Sam saved in week 1 is flagged "Check again".
 4. **Hair & brows** (the sample print has no photo):
