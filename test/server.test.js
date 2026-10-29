@@ -161,6 +161,8 @@ test('hairstyle try-on sends template + hair_color and brow try-on disables smoo
   assert.equal(bodies.brow.version, '1.0');
   assert.equal(bodies.brow.effects[0].skinSmoothStrength, 0);
   assert.equal(bodies.brow.effects[1].pattern.name, 'SoftArch1');
+  await features.browTryOn({ fileId: 'F', pattern: 'SoftArch1', color: '#33241d', lashes: { style: 'Natural5' }, lips: { color: '#a85e5e' } });
+  assert.deepEqual(bodies.brow.effects.map((e) => e.category), ['skin_smooth', 'eyebrows', 'eyelashes', 'lip_color'], 'extras ride in the same 1-unit task');
 });
 
 test('template listing follows next_token pages', async () => {
@@ -279,6 +281,18 @@ test('API: hat try-on needs a styling choice and a product photo', async () => {
     assert.equal((await (await post({ fileId: 'F', gender: 'female' })).json()).error.code, 'MissingStyle');
     const ok = await (await post({ fileId: 'F', refFileId: 'R', gender: 'female' })).json();
     assert.equal(ok.demo, true);
+  });
+});
+
+test('API: brow try-on forwards lashes, under-eye and lips', async () => {
+  const demo = createDemoFeatures();
+  let got;
+  const features = { ...demo, browTryOn: async (o) => ((got = o), { image: 'x' }) };
+  await withServer(createApp({ features, logger: {} }), async (base) => {
+    const extras = { lashes: { style: 'Natural3' }, underEye: { color: '#b98a6e' }, lips: { color: '#a85e5e' } };
+    const r = await fetch(`${base}/api/brows/try-on`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fileId: 'F', pattern: 'SoftArch1', ...extras }) });
+    assert.equal(r.status, 200);
+    assert.deepEqual({ lashes: got.lashes, underEye: got.underEye, lips: got.lips }, extras);
   });
 });
 

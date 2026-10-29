@@ -1,21 +1,24 @@
 /* Ahead design tokens.
-   Lavender is the awareness colour for all cancers; it is the only accent.
+   Palette: Oatmeal #e8dcc6, Pine Green #1f3b2e, Soft Lilac #cbb3e8. Pine is
+   the action colour in light mode; lilac takes over in dark mode and marks
+   progress in both, since lavender is the awareness colour for all cancers.
+   Red stays reserved for the call-your-care-team signs.
    Atkinson Hyperlegible (Braille Institute) is used for all reading text
    because treatment can blur vision; Literata gives headings a calm,
    journal-like voice. Status always pairs colour with words. */
 
 :root {
-  --paper: #f5f3fa;
-  --surface: #ffffff;
-  --tint: #ece8f8;
-  --ink: #261d33;
-  --ink-2: #5b5169;
-  --line: #ddd7ea;
+  --paper: #f6f1e8;
+  --surface: #fffdf9;
+  --tint: #efe6f7;
+  --ink: #17251e;
+  --ink-2: #56605a;
+  --line: #e2d6c0;
   /* Text-field boundary: >= 3:1 on surface, paper and tint in both themes (WCAG 1.4.11). */
-  --field-line: #857a9b;
-  --accent: #5847b0;
+  --field-line: #857a66;
+  --accent: #1f3b2e;
   --accent-ink: #ffffff;
-  --mark: #9486de;
+  --mark: #8a68c2;
   --call: #a8331d;
   --call-bg: #fbe8e3;
   --watch: #845500;
@@ -24,10 +27,12 @@
   --good-bg: #e1f0e7;
   --info: #3b4c86;
   --info-bg: #e7eaf7;
-  --focus: #1f6feb;
+  --focus: #6b47b8;
+  /* Text on the white pills laid over photos; the same in both themes. */
+  --on-photo-ink: #17251e;
   --r-sheet: 22px;
   --r-ctl: 14px;
-  --shadow: 0 1px 0 rgba(38, 29, 51, 0.06);
+  --shadow: 0 1px 0 rgba(23, 37, 30, 0.06);
   --font-body: 'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-display: 'Literata', Georgia, 'Times New Roman', serif;
   /* Room kept clear of the fixed tab bar (two-line labels included); grows with the text size. */
@@ -37,16 +42,16 @@
 
 @media screen and (prefers-color-scheme: dark) {
   :root {
-    --paper: #1c1724;
-    --surface: #26202f;
-    --tint: #322a42;
-    --ink: #f1edf8;
-    --ink-2: #c3bad3;
-    --line: #3d3450;
-    --field-line: #8a7fa0;
-    --accent: #a597f0;
-    --accent-ink: #1c1724;
-    --mark: #8577d6;
+    --paper: #111a15;
+    --surface: #19241e;
+    --tint: #2c2538;
+    --ink: #f4efe6;
+    --ink-2: #c9c0af;
+    --line: #2e3a33;
+    --field-line: #7d8a81;
+    --accent: #cbb3e8;
+    --accent-ink: #1a1424;
+    --mark: #9f84d4;
     --call: #ff9b85;
     --call-bg: #4a221b;
     --watch: #f3c46b;
@@ -55,7 +60,7 @@
     --good-bg: #1f3a2d;
     --info: #a9b9f5;
     --info-bg: #262f4d;
-    --focus: #7fb0ff;
+    --focus: #e8dcc6;
     color-scheme: dark;
   }
 }
@@ -208,7 +213,7 @@ input[type='range'] { width: 100%; accent-color: var(--accent); min-height: 32px
 .capture .ghost { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.28; pointer-events: none; }
 .capture .guide { position: absolute; inset: 0; pointer-events: none; }
 .capture .light { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: center; }
-.light-pill { padding: 6px 12px; border-radius: 999px; font-size: 0.9rem; font-weight: 700; background: rgba(255, 255, 255, 0.92); color: #261d33; }
+.light-pill { padding: 6px 12px; border-radius: 999px; font-size: 0.9rem; font-weight: 700; background: rgba(255, 255, 255, 0.92); color: var(--on-photo-ink); }
 .light-pill.warn { background: #fbf0d7; color: #845500; }
 .light-pill.ok { background: #e1f0e7; color: #2c664b; }
 .mirror { transform: scaleX(-1); }
@@ -275,7 +280,7 @@ button.chip { min-height: 40px; padding: 6px 14px; cursor: pointer; }
 .compare .after { clip-path: inset(0 0 0 var(--split, 50%)); }
 .compare .handle { position: absolute; top: 0; bottom: 0; left: var(--split, 50%); width: 0; border-left: 3px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2); }
 .compare .handle::after { content: ''; position: absolute; top: 50%; left: -19px; width: 34px; height: 34px; margin-top: -17px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3); }
-.compare .tag { position: absolute; top: 12px; padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.9); color: #261d33; font-size: 0.8rem; font-weight: 700; }
+.compare .tag { position: absolute; top: 12px; padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.9); color: var(--on-photo-ink); font-size: 0.8rem; font-weight: 700; }
 .gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .gallery figure { margin: 0; position: relative; }
 .gallery img { aspect-ratio: 3 / 4; object-fit: cover; border-radius: 12px; width: 100%; }

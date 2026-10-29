@@ -26,24 +26,60 @@ export function browPatternFor(shape) {
   return SHAPE_TO_PATTERN[String(shape || '').toLowerCase()] || 'Original2';
 }
 
+// Three eyelash looks from YouCam's eyelashes.json catalog, softest first.
+export const LASH_STYLES = [
+  { label: 'Natural5', name: 'Soft' },
+  { label: 'Natural3', name: 'Natural' },
+  { label: 'Upper&Lower1', name: 'Fuller' },
+];
+
+// Lip shades offered next to the lip colour measured in the print.
+export const LIP_SHADES = [
+  { id: 'soft-rose', name: 'Soft rose', hex: '#c4807f' },
+  { id: 'berry', name: 'Berry', hex: '#8e4357' },
+];
+
+const hexOr = (color, fallback) => {
+  const c = typeof color === 'string' ? color.trim() : '';
+  return /^#?[0-9a-f]{6}$/i.test(c) ? (c.startsWith('#') ? c : `#${c}`) : fallback;
+};
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(Number(v) || 0)));
+
 /**
  * Builds the makeup-vto effects for a brow preview. Smoothing is forced to 0 so
  * the face is not airbrushed. pattern.thickness is an offset from the brow
  * detected in the photo being rendered (-100..100), so 0 keeps the person's own.
+ * Lashes, under-eye concealer and lip colour are optional extras in the same
+ * call: makeup-vto costs 1 unit however many effects it applies.
  */
-export function browEffects({ pattern = 'Original2', color = '#5a4636', intensity = 60, thickness = 0, curvature = 0 } = {}) {
-  const c = typeof color === 'string' ? color.trim() : '';
-  const hex = /^#?[0-9a-f]{6}$/i.test(c) ? (c.startsWith('#') ? c : `#${c}`) : '#5a4636';
+export function browEffects({ pattern = 'Original2', color = '#5a4636', intensity = 60, thickness = 0, curvature = 0, lashes, underEye, lips } = {}) {
   const name = typeof pattern === 'string' && /^[A-Za-z0-9&_-]{1,40}$/.test(pattern) ? pattern : 'Original2';
-  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(Number(v) || 0)));
-  return [
+  const effects = [
     { category: 'skin_smooth', skinSmoothStrength: 0, skinSmoothColorIntensity: 0 },
     {
       category: 'eyebrows',
       pattern: { type: 'shape', name, thickness: clamp(thickness, -100, 100), curvature: clamp(curvature, -100, 100), definition: 40 },
-      palettes: [{ color: hex, colorIntensity: clamp(intensity, 0, 100), texture: 'matte' }],
+      palettes: [{ color: hexOr(color, '#5a4636'), colorIntensity: clamp(intensity, 0, 100), texture: 'matte' }],
     },
   ];
+  if (lashes && typeof lashes === 'object') {
+    const style = LASH_STYLES.find((s) => s.label === lashes.style)?.label || 'Natural3';
+    effects.push({ category: 'eyelashes', pattern: { name: style }, palettes: [{ color: hexOr(lashes.color, '#241a16'), colorIntensity: 70 }] });
+  }
+  // A light concealer in the person's own skin tone, weighted to the under-eye.
+  if (underEye && typeof underEye === 'object') {
+    effects.push({ category: 'concealer', palettes: [{ color: hexOr(underEye.color, '#c69c82'), colorIntensity: 35, colorUnderEyeIntensity: 60, coverageLevel: 45 }] });
+  }
+  // Satin needs no gloss or shimmer settings and reads as natural lip colour.
+  if (lips && typeof lips === 'object') {
+    effects.push({
+      category: 'lip_color',
+      shape: { name: 'original' },
+      style: { type: 'full' },
+      palettes: [{ color: hexOr(lips.color, '#b8676b'), texture: 'satin', colorIntensity: 55 }],
+    });
+  }
+  return effects;
 }
 
 /**

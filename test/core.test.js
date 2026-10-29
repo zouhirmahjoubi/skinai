@@ -256,6 +256,21 @@ test('brow effects tolerate bad input', () => {
   assert.equal(browEffects({ pattern: '../../etc' })[1].pattern.name, 'Original2');
 });
 
+test('lashes, under-eye and lips join the brow call only when asked for', () => {
+  assert.deepEqual(browEffects({}).map((e) => e.category), ['skin_smooth', 'eyebrows']);
+  const fx = browEffects({ lashes: { style: 'Upper&Lower1' }, underEye: { color: 'b98a6e' }, lips: { color: '#a85e5e' } });
+  assert.deepEqual(fx.map((e) => e.category), ['skin_smooth', 'eyebrows', 'eyelashes', 'concealer', 'lip_color']);
+  assert.equal(fx[2].pattern.name, 'Upper&Lower1');
+  assert.equal(fx[3].palettes[0].color, '#b98a6e');
+  assert.ok(fx[3].palettes[0].colorUnderEyeIntensity > 0);
+  assert.equal(fx[4].shape.name, 'original');
+  assert.equal(fx[4].palettes[0].texture, 'satin', 'satin needs no gloss or shimmer fields');
+  const bad = browEffects({ lashes: { style: 'Artistic9', color: 'red' }, underEye: true, lips: 'pink' });
+  assert.deepEqual(bad.map((e) => e.category), ['skin_smooth', 'eyebrows', 'eyelashes'], 'non-object extras are ignored');
+  assert.equal(bad[2].pattern.name, 'Natural3', 'unknown lash styles fall back to Natural');
+  assert.equal(bad[2].palettes[0].color, '#241a16');
+});
+
 test('before-treatment advice stays off notes once treatment has started', () => {
   const now = new Date('2026-10-22T10:00:00');
   const { profile, checkins } = sampleJourney(now);

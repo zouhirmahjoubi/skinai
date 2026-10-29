@@ -402,7 +402,7 @@ function Guide({ mode }) {
           <ellipse cx={OVAL.cx * 300} cy={OVAL.cy * 400} rx={OVAL.rx * 300} ry={OVAL.ry * 400} fill="#000" />
         </mask>
       </defs>
-      <rect width="300" height="400" fill="rgba(20,14,30,0.45)" mask="url(#oval-hole)" />
+      <rect width="300" height="400" fill="rgba(14,24,19,0.45)" mask="url(#oval-hole)" />
       <ellipse cx={OVAL.cx * 300} cy={OVAL.cy * 400} rx={OVAL.rx * 300} ry={OVAL.ry * 400} fill="none" stroke="#fff" strokeWidth="3" />
     </svg>
   );
