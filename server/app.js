@@ -240,9 +240,9 @@ export function createApp({
   }));
 
   api.post('/brows/try-on', quota(() => UNIT_COST.brows), wrap(async (req, res) => {
-    const { fileId, pattern, color, intensity, thickness, curvature } = req.body || {};
+    const { fileId, pattern, color, intensity, thickness, curvature, lashes, underEye, lips } = req.body || {};
     requireFileId(fileId);
-    res.json(await features.browTryOn({ fileId, pattern: String(pattern || 'Original2').slice(0, 64), color, intensity, thickness, curvature }));
+    res.json(await features.browTryOn({ fileId, pattern: String(pattern || 'Original2').slice(0, 64), color, intensity, thickness, curvature, lashes, underEye, lips }));
   }));
 
   // Each balance read is a YouCam request against the key's shared rate limit,

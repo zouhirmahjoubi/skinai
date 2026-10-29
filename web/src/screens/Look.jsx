@@ -4,7 +4,7 @@ import { api } from '../lib/api.js';
 import { db, newId, today } from '../lib/db.js';
 import { loadImage, cropToJpeg } from '../lib/image.js';
 import { TopBar, Capture, Steps, ErrorBox, CompareSlider, Icon } from '../components.jsx';
-import { browPatternFor, FACE_SHAPE_TIPS } from '../../../core/brows.js';
+import { browPatternFor, FACE_SHAPE_TIPS, LASH_STYLES, LIP_SHADES } from '../../../core/brows.js';
 import { BROW_PRODUCTS } from '../../../core/catalog.js';
 import { closest } from '../../../core/color.js';
 
@@ -536,6 +536,13 @@ function BrowSection({ onNeedPrint }) {
   const chosenPencil = colorChoice === 'mine' ? null : BROW_PRODUCTS.find((p) => p.id === colorChoice);
   const color = colorChoice === 'mine' ? myBrows : chosenPencil?.hex || '#3b2a20';
   const [intensity, setIntensity] = useState(55);
+  // Optional extras drawn in the same 1-unit makeup-vto call.
+  const [lashStyle, setLashStyle] = useState(null);
+  const [underEye, setUnderEye] = useState(false);
+  const [lipChoice, setLipChoice] = useState(null);
+  const myLips = print?.colors?.lip_color || null;
+  const skinTone = print?.colors?.skin_color || null;
+  const lipColor = lipChoice === 'mine' ? myLips : LIP_SHADES.find((s) => s.id === lipChoice)?.hex || null;
   const [todayPhoto, setTodayPhoto] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -581,7 +588,12 @@ function BrowSection({ onNeedPrint }) {
     setSaved(false);
     try {
       // thickness 0: makeup-vto thickness is relative to the brow in the photo being rendered.
-      const out = await withFiles([source], (fileId) => api.browTryOn({ fileId, pattern, color, intensity, thickness: 0 }));
+      const extras = {
+        lashes: lashStyle ? { style: lashStyle } : undefined,
+        underEye: underEye && skinTone ? { color: skinTone } : undefined,
+        lips: lipColor ? { color: lipColor } : undefined,
+      };
+      const out = await withFiles([source], (fileId) => api.browTryOn({ fileId, pattern, color, intensity, thickness: 0, ...extras }));
       setResult(out);
     } catch (err) {
       setError(err);
@@ -590,6 +602,8 @@ function BrowSection({ onNeedPrint }) {
   }
 
   const name = patterns.find((p) => p.label === pattern)?.name || pattern;
+  const extras = [lashStyle && 'lashes', underEye && skinTone && 'under-eye', lipColor && 'lips'].filter(Boolean);
+  const lookName = extras.length ? `${name}, with ${extras.length > 1 ? `${extras.slice(0, -1).join(', ')} and ${extras.at(-1)}` : extras[0]}` : name;
   const pencil = chosenPencil || BROW_PRODUCTS.find((p) => p.hex.toLowerCase() === String(myBrows || '').toLowerCase());
   return (
     <section className="sheet stack" aria-labelledby="brows">
@@ -613,10 +627,10 @@ function BrowSection({ onNeedPrint }) {
       )}
       {result ? (
         <div className="stack" ref={resultRef}>
-          <CompareSlider before={source.dataUrl} after={result.image} beforeLabel={source.label} afterLabel={result.demo ? `${name} (demo)` : name} />
-          {result.demo && <div className="banner">Demo mode: this is your photo unchanged. With a YouCam key on the server, this draws the brows.</div>}
+          <CompareSlider before={source.dataUrl} after={result.image} beforeLabel={source.label} afterLabel={result.demo ? `${extras.length ? 'Preview' : name} (demo)` : extras.length ? 'Preview' : name} />
+          {result.demo && <div className="banner">Demo mode: this is your photo unchanged. With a YouCam key on the server, this draws the brows{extras.length ? ` and ${extras.length > 1 ? 'extras' : extras[0]}` : ''}.</div>}
           <div className="row wrap">
-            <button className="btn primary" aria-disabled={saved || undefined} onClick={async () => { if (saved) return; await addLook({ id: newId(), kind: 'brows', image: result.image, label: demoLabel(`Brows: ${name}`, result.demo), createdAt: new Date().toISOString(), demo: result.demo }); setSaved(true); }}>
+            <button className="btn primary" aria-disabled={saved || undefined} onClick={async () => { if (saved) return; await addLook({ id: newId(), kind: 'brows', image: result.image, label: demoLabel(`Brows: ${lookName}`, result.demo), createdAt: new Date().toISOString(), demo: result.demo }); setSaved(true); }}>
               {saved ? 'Saved to your looks' : 'Save to my looks'}
             </button>
             <button className="btn secondary" onClick={() => setResult(null)}>Adjust</button>
@@ -668,6 +682,49 @@ function BrowSection({ onNeedPrint }) {
               {list.includes(pencil.id) ? `${pencil.name} is on my list` : `Add ${pencil.name} ($${pencil.price}) to my list`}
             </button>
           )}
+          <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend style={{ fontWeight: 700, marginBottom: 4 }}>Lashes, under-eye and lips</legend>
+            <div className="stack">
+              <p className="fine">Optional. They go into the same preview at no extra cost.</p>
+              <div className="field" role="group" aria-label="Lashes">
+                <span>Lashes</span>
+                <div className="chips">
+                  {[{ label: null, name: 'None' }, ...LASH_STYLES].map((s) => (
+                    <button key={s.name} type="button" className="chip" aria-pressed={lashStyle === s.label} onClick={() => setLashStyle(s.label)}>
+                      {s.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {skinTone && (
+                <label className="toggle">
+                  <span>
+                    <strong>Soften under-eye shadows</strong>
+                    <span className="fine" style={{ display: 'block' }}>A light concealer in your measured skin tone.</span>
+                  </span>
+                  <input type="checkbox" checked={underEye} onChange={(e) => setUnderEye(e.target.checked)} />
+                </label>
+              )}
+              <div className="field" role="group" aria-label="Lip colour">
+                <span>Lip colour</span>
+                <div className="chips">
+                  <button type="button" className="chip" aria-pressed={lipChoice === null} onClick={() => setLipChoice(null)}>None</button>
+                  {myLips && (
+                    <button type="button" className="chip" aria-pressed={lipChoice === 'mine'} onClick={() => setLipChoice('mine')}>
+                      <span aria-hidden="true" className="chip-dot" style={{ background: myLips }} />
+                      My lips
+                    </button>
+                  )}
+                  {LIP_SHADES.map((s) => (
+                    <button key={s.id} type="button" className="chip" aria-pressed={lipChoice === s.id} onClick={() => setLipChoice(s.id)}>
+                      <span aria-hidden="true" className="chip-dot" style={{ background: s.hex }} />
+                      {s.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </fieldset>
           <ErrorBox error={error} />
           {source ? (
             <button className="btn primary block" onClick={preview} disabled={busy}>{busy ? 'Drawing your brows…' : 'Preview my brows'}</button>
