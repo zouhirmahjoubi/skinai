@@ -64,6 +64,7 @@
      and a spring (overshoot, then settle) for presses and the tab pill. */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-snap: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
   --spring: linear(0, 0.009, 0.035 2.1%, 0.141 4.4%, 0.723 12.9%, 0.938 16.7%, 1.017 19.4%, 1.067 22.5%, 1.089 26%, 1.079 30.3%, 1.049 36%, 1.024 42.6%, 1.011 50.3%, 1.004 59.2%, 1.001 69.3%, 1);
   --r-sheet: 22px;
   --r-ctl: 14px;
@@ -452,17 +453,25 @@ table.grid th:first-child, table.grid td:first-child { text-align: left; }
 /* Decorative only, and its canvas reaches past its box for the rings: it must never catch clicks
    meant for the links around it. The orb follows the mouse through window events instead. */
 .hero-visual { grid-area: visual; position: relative; width: min(100%, 420px); aspect-ratio: 4 / 5; margin-inline: auto; pointer-events: none; }
-/* The portrait: 15 stacked frames, one shown at a time with a short crossfade; the edges
-   fade into the page so her studio backdrop never reads as a box in any theme. */
-.gaze { position: absolute; inset: 0; -webkit-mask-image: radial-gradient(closest-side at 50% 46%, #000 48%, transparent); mask-image: radial-gradient(closest-side at 50% 46%, #000 48%, transparent); }
-.gaze img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.16s var(--ease-snap); }
-.gaze img.on { opacity: 1; }
-/* The 3D head (three.js) takes over from the photo stack once its textures load. */
-.gaze canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 0.6s var(--ease-out); }
-.gaze.is-3d canvas { opacity: 1; }
-.gaze.is-3d img.on { opacity: 0; transition-duration: 0.6s; }
-/* Pins drift with her head so they stay near the cheek, brow and hair they point at. */
-.hero-visual .pin { translate: calc(var(--gx, 0) * 22px) calc(var(--gy, 0) * 10px); }
+/* The portrait: still and crisp, its edges fading into the page so her studio backdrop
+   never reads as a box in any theme. A soft band of light sweeps down her face like a
+   skin check, then rests before the next pass. */
+.portrait { position: absolute; inset: 0; overflow: hidden; -webkit-mask-image: radial-gradient(closest-side at 50% 46%, #000 48%, transparent); mask-image: radial-gradient(closest-side at 50% 46%, #000 48%, transparent); }
+.portrait img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.scan-band { position: absolute; left: 0; right: 0; top: 0; height: 16%; pointer-events: none; mix-blend-mode: screen; background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--orb-glow) 38%, transparent) 55%, transparent); animation: scan-pass 6.5s var(--ease-in-out-soft) infinite; }
+.scan-band::after { content: ''; position: absolute; left: 12%; right: 12%; top: 55%; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--orb-glow) 90%, white), transparent); box-shadow: 0 0 12px var(--orb-glow); }
+@keyframes scan-pass {
+  0% { transform: translateY(-100%); opacity: 0; }
+  8% { opacity: 1; }
+  55% { transform: translateY(520%); opacity: 1; }
+  62%, 100% { transform: translateY(560%); opacity: 0; }
+}
+/* Each scan ring sends out a slow ripple, one after another. */
+.pin .ret::before { content: ''; position: absolute; inset: -1px; border-radius: 50%; border: 1px solid var(--orb-glow); opacity: 0; animation: ring-ripple 2.7s var(--ease-out) infinite; animation-delay: var(--pulse, 0s); }
+@keyframes ring-ripple {
+  0% { transform: scale(1); opacity: 0.85; }
+  100% { transform: scale(2.1); opacity: 0; }
+}
 .hero-big { grid-area: big; justify-self: end; margin-top: 0; font-size: clamp(3.6rem, 19vw, 7.5rem); line-height: 0.9; letter-spacing: -0.045em; }
 .hero-body { grid-area: body; max-width: 34rem; }
 .hero-cta { grid-area: cta; display: grid; gap: 14px; }
@@ -588,7 +597,8 @@ table.grid th:first-child, table.grid td:first-child { text-align: left; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-  .arch-fill, .ftag { animation: none; }
+  .arch-fill, .ftag, .pin .ret::before { animation: none; }
+  .scan-band { display: none; }
 }
 
 /* Print: the care-team summary and wig fitting sheet ------------------------- */
