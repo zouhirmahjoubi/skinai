@@ -540,9 +540,23 @@ table.grid th:first-child, table.grid td:first-child { text-align: left; }
 @property --spin { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
 .arch-fill { position: absolute; inset: 0; background: radial-gradient(60% 50% at 30% 25%, var(--ambient-a), transparent 70%), radial-gradient(60% 50% at 75% 80%, var(--ambient-b), transparent 70%), conic-gradient(from var(--spin) at 50% 55%, var(--arch-base), var(--ambient-a), var(--ambient-c), var(--arch-base)); animation: arch-spin 28s linear infinite; }
 @keyframes arch-spin { to { --spin: 360deg; } }
-.arch-label { position: absolute; left: var(--x); top: var(--y); z-index: 1; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; white-space: nowrap; color: var(--ink); background: var(--glass-strong); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow); opacity: 0; transform: translateY(8px) scale(0.96); transition: opacity 0.5s var(--ease-out), transform 0.6s var(--spring); }
-.arch-label::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--mark); }
-.arch-label.on { opacity: 1; transform: none; }
+/* One small glass card per step (print colours, a try-on, a check-in score, the summary). */
+.arch-card { position: absolute; left: var(--x); top: var(--y); z-index: 1; width: 52%; padding: 10px 12px; border-radius: 14px; font-size: 0.78rem; color: var(--ink); background: var(--glass-strong); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); opacity: 0; transform: translateY(10px) scale(0.96); transition: opacity 0.5s var(--ease-out), transform 0.6s var(--spring); }
+.arch-card.on { opacity: 1; transform: none; }
+.card-kicker { display: block; margin-bottom: 6px; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+.card-dots { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.card-dots > span { display: inline-flex; align-items: center; gap: 4px; }
+.card-dots > span > span { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--line); }
+.card-row { display: flex; align-items: center; gap: 8px; }
+.card-row strong, .card-title { display: block; font-size: 0.85rem; }
+.card-row small { display: block; font-size: 0.72rem; color: var(--ink-2); }
+.card-thumb { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--tint); color: var(--mark); }
+.card-thumb svg { width: 20px; height: 20px; }
+.arch-card .spark { width: 60px; height: 22px; }
+.card-lines { display: grid; gap: 4px; margin-top: 6px; }
+.card-lines > span { height: 4px; border-radius: 2px; background: var(--line); }
+.card-lines > span:nth-child(2) { width: 80%; }
+.card-lines > span:nth-child(3) { width: 55%; }
 
 /* Our promise: a paragraph that darkens as you read, with small image pills and drifting tags. */
 .promise { position: relative; }
