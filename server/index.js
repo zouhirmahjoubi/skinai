@@ -39,7 +39,14 @@ const app = createApp({
 
 if (dev) {
   const { createServer } = await import('vite');
-  const vite = await createServer({ root: path.join(root, 'web'), server: { middlewareMode: true }, appType: 'spa' });
+  // Vite looks for its config in `root` (web/), so point it at the repo-root
+  // vite.config.js; without it the React plugin never loads and JSX fails.
+  const vite = await createServer({
+    configFile: path.join(root, 'vite.config.js'),
+    root: path.join(root, 'web'),
+    server: { middlewareMode: true },
+    appType: 'spa',
+  });
   app.use(vite.middlewares);
 } else {
   const dist = path.join(root, 'dist');
