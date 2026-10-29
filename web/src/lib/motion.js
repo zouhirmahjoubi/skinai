@@ -48,8 +48,8 @@ export function enterScreen(root) {
 }
 
 /**
- * The welcome landing, after Ondine's "Scrolltide": the hero (the portrait that
- * follows the pointer) assembles on load, then scroll drives the rest. How-it-works steps light up as they cross the
+ * The welcome landing, after Ondine's "Scrolltide": the hero (the portrait with
+ * its scan) assembles on load, then scroll drives the rest. How-it-works steps light up as they cross the
  * middle of the screen while a rail fills beside them and labels pop onto the
  * arch; the promise darkens word by word. getOrb() lets scroll turn the orb.
  * With reduced motion everything is simply shown, fully lit.
@@ -79,7 +79,7 @@ export function landingStory(root, getOrb) {
       .fromTo(q('.land-top'), { opacity: 0, y: -8 }, { opacity: 1, y: 0, duration: 0.5, ...DONE })
       .fromTo(q('.hero-head .eyebrow'), { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.5, ...DONE }, 0.05)
       .fromTo(q('.hero-title .hero-word > span'), { yPercent: 110 }, { yPercent: 0, duration: 0.7, stagger: 0.045, clearProps: 'transform' }, 0.1)
-      .fromTo(q('.gaze'), { opacity: 0, scale: 0.96 }, { opacity: 1, scale: 1, duration: 1.1, ...DONE }, 0.15)
+      .fromTo(q('.portrait'), { opacity: 0, scale: 0.96 }, { opacity: 1, scale: 1, duration: 1.1, ...DONE }, 0.15)
       .fromTo(q('.hero-big .hero-word > span'), { yPercent: 110 }, { yPercent: 0, duration: 0.8, clearProps: 'transform' }, 0.35)
       .fromTo(q('.pin'), { opacity: 0, scale: 0.9 }, { opacity: 1, scale: 1, duration: 0.6, stagger: 0.12, ease: 'back.out(1.8)', ...DONE }, 0.5)
       .fromTo(q('.scan-card'), { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.7, ...DONE }, 0.55)
