@@ -55,6 +55,8 @@
   --orb-glow: #cbb3e8;
   --orb-light: #f3ece0;
   --arch-base: var(--orb-light);
+  /* Accent words in large type (3:1 is enough at that size). */
+  --em: var(--mark);
   --font-accent: 'Literata', Georgia, serif;
   /* CSS stand-in for the glass orb (arch, image pills, and before three.js loads). */
   --orb-css: radial-gradient(circle at 34% 28%, var(--orb-light), transparent 48%), radial-gradient(circle at 62% 88%, color-mix(in srgb, var(--orb-core) 55%, transparent), transparent 58%), radial-gradient(circle, color-mix(in srgb, var(--orb-glow) 45%, var(--orb-light)), color-mix(in srgb, var(--orb-glow) 80%, var(--orb-core)) 92%);
@@ -105,6 +107,41 @@
     --orb-light: #d9cdb6;
     --arch-base: #1f2b25;
     color-scheme: dark;
+  }
+}
+
+/* Colour themes from the reel: Lotus (the default above), Orchard Market and Cream.
+   Picked in Settings or on the welcome page. Status colours (call, watch, good, info)
+   never change, so a care-team warning reads the same in every theme. Every text and
+   control colour here keeps WCAG AA on paper, surface, tint and the ambient hazes. */
+:root[data-palette='orchard'] {
+  --paper: #fbf3e9; --surface: #fffcf7; --tint: #f2f6dc; --ink: #1f2210; --ink-2: #595a45;
+  --line: #ecdfc9; --field-line: #8a8068; --accent: #4a650b; --accent-ink: #ffffff;
+  --mark: #73900f; --focus: #c20500; --em: #c80500; --on-photo-ink: #1f2210;
+  --ambient-a: #eef5cf; --ambient-b: #fbe3cf; --ambient-c: #fbdcd3;
+  --orb-core: #4a650b; --orb-glow: #bfe23a; --orb-light: #f9ead7;
+}
+:root[data-palette='cream'] {
+  --paper: #f8eff0; --surface: #fffbfb; --tint: #f3e5e8; --ink: #2a0e26; --ink-2: #66525f;
+  --line: #e9d6da; --field-line: #8f7683; --accent: #3a0f34; --accent-ink: #ffffff;
+  --mark: #a26f7a; --focus: #c75a3a; --em: #b4502f; --on-photo-ink: #2a0e26;
+  --ambient-a: #f0dde2; --ambient-b: #eadbe7; --ambient-c: #f5e0d6;
+  --orb-core: #3a0f34; --orb-glow: #c9a0a7; --orb-light: #f8eff0;
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root[data-palette='orchard'] {
+    --paper: #14160c; --surface: #1c1f12; --tint: #28301a; --ink: #f5f1e4; --ink-2: #c9c6ae;
+    --line: #30361f; --field-line: #838b6b; --accent: #bfe23a; --accent-ink: #1d2706;
+    --mark: #a6c536; --focus: #f9ead7; --em: #ff7a6b;
+    --ambient-a: #223012; --ambient-b: #2c2016; --ambient-c: #2c1814;
+    --orb-core: #3d5410; --orb-light: #e9dcc6; --arch-base: #222914;
+  }
+  :root[data-palette='cream'] {
+    --paper: #1a0e19; --surface: #241423; --tint: #331c30; --ink: #f7ecef; --ink-2: #d3bdc7;
+    --line: #3b2537; --field-line: #9b8393; --accent: #c9a0a7; --accent-ink: #2a0e26;
+    --mark: #b98a93; --focus: #f5e0d6; --em: #e88b6c;
+    --ambient-a: #2d1529; --ambient-b: #321b24; --ambient-c: #251419;
+    --orb-core: #5a2350; --orb-light: #e5cfd3; --arch-base: #2a1727;
   }
 }
 
@@ -414,7 +451,18 @@ table.grid th:first-child, table.grid td:first-child { text-align: left; }
 .hero-line.accent { padding-left: 0.6em; letter-spacing: -0.01em; }
 /* Decorative only, and its canvas reaches past its box for the rings: it must never catch clicks
    meant for the links around it. The orb follows the mouse through window events instead. */
-.hero-visual { grid-area: visual; position: relative; width: min(100%, 520px); aspect-ratio: 1; margin-inline: auto; pointer-events: none; }
+.hero-visual { grid-area: visual; position: relative; width: min(100%, 420px); aspect-ratio: 4 / 5; margin-inline: auto; pointer-events: none; }
+/* The portrait: 15 stacked frames, one shown at a time with a short crossfade; the edges
+   fade into the page so her studio backdrop never reads as a box in any theme. */
+.gaze { position: absolute; inset: 0; -webkit-mask-image: radial-gradient(closest-side at 50% 46%, #000 48%, transparent); mask-image: radial-gradient(closest-side at 50% 46%, #000 48%, transparent); }
+.gaze img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.16s var(--ease-snap); }
+.gaze img.on { opacity: 1; }
+/* The 3D head (three.js) takes over from the photo stack once its textures load. */
+.gaze canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 0.6s var(--ease-out); }
+.gaze.is-3d canvas { opacity: 1; }
+.gaze.is-3d img.on { opacity: 0; transition-duration: 0.6s; }
+/* Pins drift with her head so they stay near the cheek, brow and hair they point at. */
+.hero-visual .pin { translate: calc(var(--gx, 0) * 22px) calc(var(--gy, 0) * 10px); }
 .hero-big { grid-area: big; justify-self: end; margin-top: 0; font-size: clamp(3.6rem, 19vw, 7.5rem); line-height: 0.9; letter-spacing: -0.045em; }
 .hero-body { grid-area: body; max-width: 34rem; }
 .hero-cta { grid-area: cta; display: grid; gap: 14px; }
@@ -426,10 +474,19 @@ table.grid th:first-child, table.grid td:first-child { text-align: left; }
 .cta-row .btn.secondary { border-radius: 999px; }
 .trust { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--ink-2); }
 .trust svg { flex: none; }
+/* Colour theme switcher: three glass pills, each showing its palette. */
+.palettes { display: flex; flex-wrap: wrap; gap: 8px; }
+.palette { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 14px 6px 8px; border-radius: 999px; font-size: 0.9rem; color: var(--ink); background: var(--glass-strong); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow); cursor: pointer; transition: border-color 0.3s var(--ease-snap), transform 0.45s var(--spring); }
+.palette[aria-pressed='true'] { border-color: var(--accent); box-shadow: var(--glass-shadow), 0 0 0 1px var(--accent); font-weight: 700; }
+.palette:active { transform: scale(0.97); }
+.palette-dots { display: inline-flex; }
+.palette-dots > span { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--surface); }
+.palette-dots > span + span { margin-left: -6px; }
 
 /* The orb, its scan pins and the floating check-in card. */
 /* Phones: the orb sits up and to the left, leaving the lower right corner for the card. */
-.orb-wrap { position: absolute; inset: 0 18% 22% 0; }
+/* The three.js orb, now inside the How it works arch. */
+.orb-wrap { position: absolute; left: 10%; right: 10%; top: 52%; aspect-ratio: 1; translate: 0 -50%; }
 .orb-wrap canvas { position: absolute; inset: -12%; width: 124%; height: 124%; opacity: 0; transition: opacity 0.9s var(--ease-out); }
 .orb-wrap.ready canvas { opacity: 1; }
 .orb-wrap.ready .orb-fallback { opacity: 0; }
@@ -474,7 +531,6 @@ table.grid th:first-child, table.grid td:first-child { text-align: left; }
 @property --spin { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
 .arch-fill { position: absolute; inset: 0; background: radial-gradient(60% 50% at 30% 25%, var(--ambient-a), transparent 70%), radial-gradient(60% 50% at 75% 80%, var(--ambient-b), transparent 70%), conic-gradient(from var(--spin) at 50% 55%, var(--arch-base), var(--ambient-a), var(--ambient-c), var(--arch-base)); animation: arch-spin 28s linear infinite; }
 @keyframes arch-spin { to { --spin: 360deg; } }
-.arch-orb { position: absolute; left: 50%; top: 52%; width: 58%; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; background: var(--orb-css); box-shadow: inset 0 0 36px color-mix(in srgb, var(--orb-glow) 75%, transparent), 0 24px 50px -24px color-mix(in srgb, var(--orb-core) 70%, transparent); }
 .arch-label { position: absolute; left: var(--x); top: var(--y); z-index: 1; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; white-space: nowrap; color: var(--ink); background: var(--glass-strong); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow); opacity: 0; transform: translateY(8px) scale(0.96); transition: opacity 0.5s var(--ease-out), transform 0.6s var(--spring); }
 .arch-label::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--mark); }
 .arch-label.on { opacity: 1; transform: none; }
@@ -482,7 +538,7 @@ table.grid th:first-child, table.grid td:first-child { text-align: left; }
 /* Our promise: a paragraph that darkens as you read, with small image pills and drifting tags. */
 .promise { position: relative; }
 .statement { margin-top: 18px; font-size: clamp(1.55rem, 5.6vw, 2.7rem); line-height: 1.28; letter-spacing: -0.02em; }
-.statement em { color: var(--mark); }
+.statement em { color: var(--em); }
 .ipill { display: inline-block; width: 2.2em; height: 0.95em; vertical-align: -0.06em; border-radius: 999px; background: var(--orb-css); box-shadow: inset 0 0 8px color-mix(in srgb, var(--orb-glow) 80%, transparent); }
 .ftags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
 .ftag { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: 0.82rem; color: var(--ink-2); background: var(--glass-strong); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow); animation: tag-x 7s var(--ease-snap) infinite alternate, tag-y 11s var(--ease-snap) infinite alternate; animation-delay: var(--d, 0s); }
@@ -498,11 +554,10 @@ table.grid th:first-child, table.grid td:first-child { text-align: left; }
   .landing > section { margin-top: 120px; }
   .hero { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); grid-template-areas: 'head visual' 'body visual' 'cta big'; column-gap: 40px; align-items: start; }
   .hero-head { align-self: end; }
-  .hero-visual { width: 100%; margin-top: -24px; }
+  .hero-visual { width: min(100%, 470px); margin-top: -24px; }
   .hero-big { margin-top: -0.35em; }
   .cta-row { display: flex; flex-wrap: wrap; }
   /* Wide screens: the orb centres, tags sit beside their reticles with a short leader line, as in Ondine. */
-  .orb-wrap { inset: 8%; }
   .pin { left: var(--xw); top: var(--yw); }
   .pin.minor .tag { display: inline-flex; }
   .pin .tag { top: -15px; translate: none; }
@@ -511,7 +566,11 @@ table.grid th:first-child, table.grid td:first-child { text-align: left; }
   .pin .tag::after { width: 12px; height: 1px; top: 50%; bottom: auto; left: auto; }
   .pin.left .tag::after { left: 100%; }
   .pin.right .tag::after { right: 100%; }
-  .scan-card { top: 8%; bottom: auto; right: -2%; width: min(250px, 46%); }
+  .scan-card { top: 4%; bottom: auto; right: -2%; width: min(236px, 50%); }
+}
+/* Wide enough for the card to sit beside her head instead of over it. */
+@media (min-width: 1200px) {
+  .scan-card { top: auto; bottom: 14%; right: -12%; }
   .method { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 64px; }
   .method-visual { order: 2; }
   .method-visual .arch { position: sticky; top: 12vh; }

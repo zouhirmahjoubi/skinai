@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore, go } from '../lib/store.jsx';
 import { api, setAccessCode } from '../lib/api.js';
-import { TopBar } from '../components.jsx';
+import { TopBar, PaletteSwitcher } from '../components.jsx';
 import { TREATMENTS, TREATMENT_KEYS } from '../../../core/treatments.js';
 
 export default function Settings() {
@@ -128,6 +128,12 @@ export default function Settings() {
         <button className="btn secondary" onClick={async () => { if (window.confirm('Replace your journal with the sample journey?')) { await loadSample(); go('/today'); } }}>Load sample journey</button>
         <button className="btn secondary" style={{ color: 'var(--call)' }} onClick={async () => { if (window.confirm('Delete everything Ahead has stored on this device?')) { await resetAll(); go('/today'); } }}>Delete everything</button>
         {dataMsg && <p className="fine" role="status">{dataMsg}</p>}
+      </section>
+
+      <section className="sheet stack" aria-labelledby="theme">
+        <h2 id="theme">Colour theme</h2>
+        <p className="small">Choose the colours you like. Warnings keep their own colours in every theme.</p>
+        <PaletteSwitcher />
       </section>
 
       <section className="sheet stack" aria-labelledby="about">
