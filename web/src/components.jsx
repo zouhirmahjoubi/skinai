@@ -4,6 +4,26 @@ import { STATUS_TEXT } from '../../core/trends.js';
 import { displayScore } from '../../core/concerns.js';
 import { cropToJpeg, faceBrightness, lightLabel, loadImage } from './lib/image.js';
 import { reducedMotion } from './lib/motion.js';
+import { PALETTES, usePalette } from './lib/palette.js';
+
+/** Colour theme buttons (Lotus, Orchard Market, Cream), each with its three colours. */
+export function PaletteSwitcher() {
+  const [palette, setPalette] = usePalette();
+  return (
+    <div className="palettes" role="group" aria-label="Colour theme">
+      {PALETTES.map((p) => (
+        <button key={p.id} type="button" className="palette" aria-pressed={palette === p.id} onClick={() => setPalette(p.id)}>
+          <span className="palette-dots" aria-hidden="true">
+            {p.swatches.map((c) => (
+              <span key={c} style={{ background: c }} />
+            ))}
+          </span>
+          {p.name}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 // Icons ---------------------------------------------------------------------
 const paths = {

@@ -156,6 +156,7 @@ export function startAmbient(canvas, { still = false } = {}) {
 
   window.addEventListener('resize', onResize);
   window.addEventListener('pointermove', onPointer, { passive: true });
+  window.addEventListener('palettechange', onScheme);
   document.addEventListener('visibilitychange', onVisibility);
   scheme.addEventListener('change', onScheme);
   draw(performance.now());
@@ -165,6 +166,7 @@ export function startAmbient(canvas, { still = false } = {}) {
     pause();
     window.removeEventListener('resize', onResize);
     window.removeEventListener('pointermove', onPointer);
+    window.removeEventListener('palettechange', onScheme);
     document.removeEventListener('visibilitychange', onVisibility);
     scheme.removeEventListener('change', onScheme);
     geometry.dispose();

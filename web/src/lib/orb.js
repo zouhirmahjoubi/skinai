@@ -194,6 +194,7 @@ export function startOrb(canvas, { still = false } = {}) {
   };
 
   window.addEventListener('pointermove', onPointer, { passive: true });
+  window.addEventListener('palettechange', onScheme);
   document.addEventListener('visibilitychange', onVisibility);
   scheme.addEventListener('change', onScheme);
   draw(performance.now());
@@ -209,6 +210,7 @@ export function startOrb(canvas, { still = false } = {}) {
       io.disconnect();
       ro.disconnect();
       window.removeEventListener('pointermove', onPointer);
+      window.removeEventListener('palettechange', onScheme);
       document.removeEventListener('visibilitychange', onVisibility);
       scheme.removeEventListener('change', onScheme);
       sphereGeo.dispose();

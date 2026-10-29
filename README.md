@@ -4,6 +4,8 @@
 
 **Live demo:** https://ahead-skinai.onrender.com (the access code is in the submission).
 
+The woman on the welcome page is AI-generated (KIE, Nano Banana 2), not a real person: one portrait, 14 edits turning her head, and a depth map that three.js uses to give her face real relief as it follows the pointer. Colour themes (Lotus, Orchard Market, Cream) are in Settings and on the welcome page.
+
 Most people starting chemotherapy, radiation or targeted therapy are told their skin, hair and brows will change. Very few are told what that will look like, which changes matter, or what is safe to buy. Ahead is a mobile web app for that moment:
 
 - **Hair & Brow Print.** Before hair changes, one selfie records hair colour family, brow colour, brow shape, brow thickness and face shape, using YouCam Facial Color Tones and Face Attributes analysis.

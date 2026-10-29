@@ -1,16 +1,23 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Logo } from '../components.jsx';
+import { Logo, PaletteSwitcher } from '../components.jsx';
 import { landingStory, reducedMotion } from '../lib/motion.js';
 
 // The first screen: a short scroll story (hero, how it works, our promise)
 // before setup. Everything decorative is aria-hidden; the text reads in order.
 
-// Reticle positions on the orb; on phones the tags sit under their reticles instead of beside them.
+// Reticle positions on the portrait (cheek, brow, hair); on phones the tags sit under their reticles.
 const PINS = [
-  { x: '24%', y: '30%', side: 'left', name: 'Calm skin', note: 'steady' },
-  { x: '64%', y: '18%', xw: '62%', yw: '54%', side: 'right', name: 'Brow shape', note: 'saved' },
-  { x: '34%', y: '62%', side: 'left minor', name: 'Hair colour', note: 'on record' },
+  { x: '40%', y: '56%', side: 'left', name: 'Calm skin', note: 'steady' },
+  { x: '60%', y: '41%', side: 'right', name: 'Brow shape', note: 'saved' },
+  { x: '47%', y: '27%', side: 'left minor', name: 'Hair colour', note: 'on record' },
 ];
+
+// The portrait: one AI-generated woman (KIE, Nano Banana 2) photographed 15 ways,
+// head turned in a 5 x 3 grid (left to right, up to down); gaze-2-1 looks straight ahead.
+const GAZE_COLS = 5;
+const GAZE_ROWS = 3;
+const GAZE_FRAMES = Array.from({ length: GAZE_COLS * GAZE_ROWS }, (_, i) => `${i % GAZE_COLS}-${Math.floor(i / GAZE_COLS)}`);
+const GAZE_HOME = '2-1';
 
 const STEPS = [
   { n: '01', title: 'Print', body: 'One selfie keeps your hair colour, brow shape and face shape on record.' },
@@ -52,6 +59,114 @@ function Lock() {
     <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
       <path d="M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
     </svg>
+  );
+}
+
+/**
+ * Fallback when WebGL is unavailable: the frames are stacked and the one nearest the
+ * pointer's direction is shown. Returns a stop function.
+ */
+function flatGaze(el, setAt, onPose) {
+  const target = { x: 0, y: 0 };
+  const cur = { x: 0, y: 0 };
+  let lastMove = -Infinity;
+  let raf = 0;
+  let visible = true;
+  const clamp = (v) => Math.max(-1, Math.min(1, v));
+  const onMove = (e) => {
+    const r = el.getBoundingClientRect();
+    target.x = clamp((e.clientX - (r.left + r.width / 2)) / (window.innerWidth * 0.3));
+    target.y = clamp((e.clientY - (r.top + r.height * 0.36)) / (window.innerHeight * 0.3));
+    lastMove = performance.now();
+  };
+  const loop = (t) => {
+    raf = requestAnimationFrame(loop);
+    if (t - lastMove > 3000) {
+      target.x = Math.sin(t / 2700) * 0.8;
+      target.y = Math.sin(t / 4100) * 0.6;
+    }
+    cur.x += (target.x - cur.x) * 0.1;
+    cur.y += (target.y - cur.y) * 0.1;
+    const col = Math.round(((cur.x + 1) / 2) * (GAZE_COLS - 1));
+    const row = Math.round(((cur.y + 1) / 2) * (GAZE_ROWS - 1));
+    const key = `${col}-${row}`;
+    setAt((prev) => (prev === key ? prev : key));
+    onPose(cur.x, cur.y);
+  };
+  const play = () => {
+    if (!raf && visible && !document.hidden) raf = requestAnimationFrame(loop);
+  };
+  const pause = () => {
+    cancelAnimationFrame(raf);
+    raf = 0;
+  };
+  const io = new IntersectionObserver(([entry]) => {
+    visible = entry.isIntersecting;
+    visible ? play() : pause();
+  });
+  io.observe(el);
+  const onVisibility = () => (document.hidden ? pause() : play());
+  window.addEventListener('pointermove', onMove, { passive: true });
+  document.addEventListener('visibilitychange', onVisibility);
+  play();
+  return () => {
+    pause();
+    io.disconnect();
+    window.removeEventListener('pointermove', onMove);
+    document.removeEventListener('visibilitychange', onVisibility);
+  };
+}
+
+/**
+ * The portrait that follows the pointer in 3D (lib/head3d.js): her head turns toward
+ * it in perspective while the photo swaps to the frame looking that way. With no
+ * pointer for a few seconds (or on a phone) she glances around slowly on her own.
+ * The stacked photos show until the 3D head is ready, and stay if WebGL is missing.
+ * The pins drift with her head through --gx / --gy. Still with reduced motion.
+ */
+function Gaze() {
+  const ref = useRef(null);
+  const canvas = useRef(null);
+  const [at, setAt] = useState(GAZE_HOME);
+  const [is3d, setIs3d] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const still = reducedMotion();
+    const visual = el.closest('.hero-visual');
+    const onPose = (x, y) => {
+      visual?.style.setProperty('--gx', x.toFixed(3));
+      visual?.style.setProperty('--gy', y.toFixed(3));
+    };
+    const frames = Object.fromEntries(GAZE_FRAMES.map((k) => [k, `/gaze/gaze-${k}.webp`]));
+    let head = null;
+    let stopFlat = null;
+    let cancelled = false;
+    const fallBack = () => {
+      if (!cancelled && !still) stopFlat = flatGaze(el, setAt, onPose);
+    };
+    import('../lib/head3d.js')
+      .then(({ startHead }) => startHead(canvas.current, { frames, depthUrl: '/gaze/depth.webp', cols: GAZE_COLS, rows: GAZE_ROWS, home: GAZE_HOME, still, onPose }))
+      .then((h) => {
+        if (cancelled) return h?.stop();
+        if (!h) return fallBack();
+        head = h;
+        setIs3d(true);
+      })
+      .catch(fallBack);
+    return () => {
+      cancelled = true;
+      head?.stop();
+      stopFlat?.();
+    };
+  }, []);
+  return (
+    <div className={`gaze${is3d ? ' is-3d' : ''}`} ref={ref}>
+      {GAZE_FRAMES.map((key) => (
+        <img key={key} src={`/gaze/gaze-${key}.webp`} alt="" decoding="async" fetchpriority={key === GAZE_HOME ? 'high' : 'low'} className={key === at ? 'on' : undefined} />
+      ))}
+      <canvas ref={canvas} />
+    </div>
   );
 }
 
@@ -131,7 +246,7 @@ export default function Landing({ onStart, onSample, demo, iosNote, returning = 
         </div>
 
         <div className="hero-visual" aria-hidden="true">
-          <Orb orbRef={orbRef} />
+          <Gaze />
           {PINS.map((p) => (
             <span key={p.name} className={`pin ${p.side}`} style={{ '--x': p.x, '--y': p.y, '--xw': p.xw || p.x, '--yw': p.yw || p.y }}>
               <span className="ret" />
@@ -186,6 +301,7 @@ export default function Landing({ onStart, onSample, demo, iosNote, returning = 
           <p className="trust">
             <Lock /> Your photos and history stay on this device.
           </p>
+          <PaletteSwitcher />
           {iosNote}
           {demo && <p className="fine">This server has no YouCam key, so analysis shows demo results.</p>}
         </div>
@@ -225,7 +341,7 @@ export default function Landing({ onStart, onSample, demo, iosNote, returning = 
         <div className="method-visual" aria-hidden="true">
           <div className="arch">
             <div className="arch-fill" />
-            <div className="arch-orb" />
+            <Orb orbRef={orbRef} />
             {ARCH_LABELS.map((l) => (
               <span key={l.text} className="arch-label" style={{ '--x': l.x, '--y': l.y }}>
                 {l.text}
