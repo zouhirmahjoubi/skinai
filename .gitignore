@@ -5,3 +5,10 @@ dist/
 *.log
 .DS_Store
 /screenshots-tmp/
+
+# Personal test photos and smoke-test results: never commit them.
+/face.jpg
+/portrait.jpg
+/hat.jpg
+/smoke-*
+/live-extras*

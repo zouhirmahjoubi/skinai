@@ -91,14 +91,17 @@ export function createYouCamClient({ apiKey, baseUrl = BASE_URL, fetchImpl = fet
   // Polling is mandatory: an abandoned task still consumes units and later
   // reads as InvalidTaskId. Back off gently; a failed poll is retried, since
   // it does not cancel the task. Rate-limited polls back off until the
-  // deadline; network and 502-504 errors get four retries in a row.
+  // deadline; network and 502-504 errors get four retries in a row. No task
+  // finishes the instant it starts, so the first poll waits too, and YouCam's
+  // own polling_interval, when it sends one, replaces this schedule.
   async function pollTask(feature, taskId) {
     const v = VERSIONS[feature] || 'v2.0';
     const deadline = Date.now() + pollTimeoutMs;
-    let delay = 1500;
+    let delay = 2500;
     let strikes = 0;
     let limited = 0;
     let lastLimit = null;
+    await sleep(2000);
     while (Date.now() < deadline) {
       let data;
       try {
@@ -127,7 +130,7 @@ export function createYouCamClient({ apiKey, baseUrl = BASE_URL, fetchImpl = fet
       }
       const hinted = Number(data?.polling_interval);
       await sleep(hinted > 0 ? Math.min(Math.max(hinted * 1000, 1000), 10_000) : delay);
-      delay = Math.min(delay * 1.4, 6000);
+      delay = Math.min(delay * 1.4, 8000);
     }
     const timeout = limited ? lastLimit : new YouCamError('Timed out waiting for YouCam', 'Timeout', 504);
     timeout.billed = true;

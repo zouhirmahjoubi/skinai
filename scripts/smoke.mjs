@@ -59,7 +59,13 @@ const step = async (label, fn) => {
     return null;
   }
 };
-const save = (name, dataUrl) => fs.writeFileSync(name, Buffer.from(dataUrl.split(',')[1], 'base64'));
+// Saves a result under its real type (makeup-vto returns PNG) and returns the file name.
+const save = (base, dataUrl) => {
+  const [head, body] = dataUrl.split(',');
+  const name = `${base}.${head.includes('image/png') ? 'png' : 'jpg'}`;
+  fs.writeFileSync(name, Buffer.from(body, 'base64'));
+  return name;
+};
 const fitsMakeup = (i) => Math.max(i.width, i.height) < 1920; // Makeup VTO: long side < 1920
 const fitsHair = (i) => i && i.type === 'image/jpeg' && Math.max(i.width, i.height) <= 1024; // Hairstyle: JPEG, long side <= 1024
 
@@ -73,7 +79,7 @@ if (!info) throw new Error(`${facePath} is not a JPEG or PNG`);
 const tier = skinTierFor(info);
 ok('photo', `${info.width}x${info.height}, skin tier ${tier}`);
 
-// Skin analysis deletes its task (and the uploaded photo) afterwards, so it gets its own upload.
+// Every task is deleted afterwards with its uploaded photos, so each one gets its own upload.
 const skinUp = await step('upload (skin)', () => f.upload(face, info));
 if (skinUp && tier) {
   const skin = await step('skin-analysis', () => f.analyzeSkin({ fileId: skinUp.fileId, tier }));
@@ -92,10 +98,10 @@ if (up) {
   });
   if (print) ok('print', JSON.stringify(print));
   if (fitsMakeup(info)) {
-    const brow = await step('makeup-vto eyebrows (face photo)', () => f.browTryOn({ fileId: up.fileId, pattern: 'SoftArch1', color: '#3b2a20', intensity: 55 }));
+    const bUp = await step('upload (brows)', () => f.upload(face, info));
+    const brow = bUp && (await step('makeup-vto eyebrows (face photo)', () => f.browTryOn({ fileId: bUp.fileId, pattern: 'SoftArch1', color: '#3b2a20', intensity: 55 })));
     if (brow) {
-      save('smoke-brows.jpg', brow.image);
-      ok('makeup-vto', 'saved smoke-brows.jpg');
+      ok('makeup-vto', `saved ${save('smoke-brows', brow.image)}; task deleted: ${brow.deleted}`);
       browsDone = true;
     }
   } else console.log(`  skip makeup-vto on face photo: long side must be < 1920px (got ${info.width}x${info.height}); will use portrait`);
@@ -113,32 +119,26 @@ if (portraitPath) {
     console.log(`  FAIL portrait: hair-transfer needs a JPEG with long side <= 1024px (got ${pInfo ? `${pInfo.type} ${pInfo.width}x${pInfo.height}` : 'unreadable file'})`);
     process.exitCode = 1;
   } else {
-    const pUp = await step('upload portrait', () => f.upload(portrait, pInfo));
-    if (pUp && templates?.length) {
+    const upPortrait = (why) => step(`upload portrait (${why})`, () => f.upload(portrait, pInfo));
+    if (templates?.length) {
       const t = templates.find((x) => x.keepsColor) || templates[0];
-      const hair = await step('hair-transfer', () => f.hairTryOn({ fileId: pUp.fileId, templateId: t.id, keepColor: t.keepsColor }));
-      if (hair) {
-        save('smoke-hair.jpg', hair.image);
-        ok('hair-transfer', `saved smoke-hair.jpg (${t.id})`);
-      }
+      const pUp = await upPortrait('hair');
+      const hair = pUp && (await step('hair-transfer', () => f.hairTryOn({ fileId: pUp.fileId, templateId: t.id, keepColor: t.keepsColor })));
+      if (hair) ok('hair-transfer', `saved ${save('smoke-hair', hair.image)} (${t.id}); task deleted: ${hair.deleted}`);
     }
-    if (pUp && !browsDone) {
-      const brow = await step('makeup-vto eyebrows (portrait)', () => f.browTryOn({ fileId: pUp.fileId, pattern: 'SoftArch1', color: '#3b2a20', intensity: 55 }));
-      if (brow) {
-        save('smoke-brows.jpg', brow.image);
-        ok('makeup-vto', 'saved smoke-brows.jpg from portrait');
-      }
+    if (!browsDone) {
+      const pUp = await upPortrait('brows');
+      const brow = pUp && (await step('makeup-vto eyebrows (portrait)', () => f.browTryOn({ fileId: pUp.fileId, pattern: 'SoftArch1', color: '#3b2a20', intensity: 55 })));
+      if (brow) ok('makeup-vto', `saved ${save('smoke-brows', brow.image)} from portrait`);
     }
-    if (pUp && hatPath) {
+    const pUp = hatPath && (await upPortrait('hat'));
+    if (pUp) {
       const hat = fs.readFileSync(hatPath);
       const hInfo = sniffImage(hat);
       const hUp = hInfo && (await step('upload hat', () => f.upload(hat, hInfo)));
       if (hUp) {
         const out = await step('hat', () => f.hatTryOn({ fileId: pUp.fileId, refFileId: hUp.fileId, gender: 'female' }));
-        if (out) {
-          save('smoke-hat.jpg', out.image);
-          ok('hat', 'saved smoke-hat.jpg');
-        }
+        if (out) ok('hat', `saved ${save('smoke-hat', out.image)}; task deleted: ${out.deleted}`);
       }
     }
   }

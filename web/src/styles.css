@@ -331,7 +331,9 @@ input[type='range'] { width: 100%; accent-color: var(--accent); min-height: 32px
 .capture.framing { touch-action: none; }
 /* Keep the capture and preview buttons above the tab bar on phones and laptops. */
 @media (max-height: 940px) { .capture, .photo.preview { width: min(100%, calc(40svh * 3 / 4)); margin-inline: auto; } }
-.capture video, .capture .frame-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.capture video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* Sized and moved inline: the whole photo at cover size, centred, so zooming out shows all of it. */
+.capture .frame-img { position: absolute; left: 50%; top: 50%; max-width: none; }
 .capture .ghost { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.28; pointer-events: none; }
 .capture .guide { position: absolute; inset: 0; pointer-events: none; }
 .capture .light { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: center; }

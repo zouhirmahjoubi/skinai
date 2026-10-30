@@ -24,8 +24,11 @@ const REUPLOAD = new Set(['InvalidFileId', 'unknown_internal_error', 'error_down
  * file, every photo is uploaded again and fn runs once more: at most two
  * tasks per tap. A product photo (ref) that fails to upload is reported
  * against the product photo, never as a reason to retake the portrait.
+ * The server deletes each live try-on task with its photos, and a failed one
+ * too, so the ids are then forgotten and the next try-on uploads afresh.
  */
 async function withFiles(photos, fn) {
+  const forget = () => photos.forEach((p) => fileIds.delete(p.key));
   const ids = () =>
     Promise.all(
       photos.map((p) =>
@@ -35,12 +38,17 @@ async function withFiles(photos, fn) {
         }),
       ),
     );
+  const run = async () => {
+    const out = await fn(...(await ids()));
+    if (out?.deleted) forget();
+    return out;
+  };
   try {
-    return await fn(...(await ids()));
+    return await run();
   } catch (err) {
+    forget();
     if (!REUPLOAD.has(err.code)) throw err;
-    for (const p of photos) fileIds.delete(p.key);
-    return fn(...(await ids()));
+    return run();
   }
 }
 
@@ -60,15 +68,47 @@ function useResultFocus(result) {
   return ref;
 }
 
-function Swatch({ label, hex, name, family }) {
+function Swatch({ label, hex, name, family, note }) {
   return (
     <div className="swatch">
       <div className="chipcolor" style={{ background: hex || 'var(--tint)' }} />
       <div>
         <strong>{label}</strong>
         {family ? name || 'not read' : <>{name ? `${name}, ` : ''}{hex || 'not read'}</>}
+        {note && <span className="fine" style={{ display: 'block' }}>{note}</span>}
       </div>
     </div>
+  );
+}
+
+// YouCam's hair colour families, each with a typical shade for the swatch.
+// YouCam only names a family (its hex is a stand-in, e.g. #000000 for Black).
+const HAIR_FAMILIES = { Black: '#1f1b19', Brown: '#5a3a24', Auburn: '#7b3a22', Red: '#a5482a', Blonde: '#c9a46a', 'Grey/White': '#c9c6c1' }; // ds-allow-hardcode: hair colours, not theme colours
+
+// Bright or flat light can fool the hair reading (a black-haired studio
+// portrait came back Blonde), so the person can set it right. What YouCam
+// read is kept in hair_read, and picking it again restores it.
+function HairFix({ print, savePrint }) {
+  const { hair_read: read, ...c } = print.colors || {};
+  async function choose(name) {
+    const was = read || { name: c.hair_color_name, hex: c.hair_color };
+    const colors = name === was.name ? { ...c, hair_color_name: was.name, hair_color: was.hex } : { ...c, hair_color_name: name, hair_color: HAIR_FAMILIES[name], hair_read: was };
+    await savePrint({ ...print, colors });
+  }
+  return (
+    <details>
+      <summary style={{ cursor: 'pointer', fontWeight: 700, color: 'var(--accent)' }}>Hair colour wrong?</summary>
+      <div className="stack" style={{ marginTop: 10 }}>
+        <p className="fine">Bright or flat light can fool the reading. Pick your natural colour and your fitting sheet uses it.</p>
+        <div className="chips">
+          {Object.keys(HAIR_FAMILIES).map((name) => (
+            <button key={name} type="button" className="chip" aria-pressed={c.hair_color_name === name} onClick={() => choose(name)}>
+              {name}
+            </button>
+          ))}
+        </div>
+      </div>
+    </details>
   );
 }
 
@@ -175,7 +215,8 @@ function PrintSection({ retake, setRetake }) {
       const face = result.face || prev?.face || null;
       const kept = { colors: !result.colors && prev?.colors ? prev.date : null, face: !result.face && prev?.face ? prev.date : null };
       const p = { date: today(), photo: shot.dataUrl, colors, face, partial: !colors || !face, errors: result.errors || null, kept, demo: Boolean(result.demo) };
-      fileIds.set(`print:${p.date}`, fileId);
+      // A live print deletes its selfie on YouCam, so only a kept one is reused.
+      if (!result.deleted) fileIds.set(`print:${p.date}`, fileId);
       await savePrint(p);
       setRetake(false);
       setJustSaved(true);
@@ -221,10 +262,11 @@ function PrintSection({ retake, setRetake }) {
       <PrintGaps print={print} />
       {justSaved && !print.partial && <p className="fine" role="status">Saved on this device. Your print can’t be retaken once your hair changes, so download a copy now and then from Settings.</p>}
       <div className="swatches">
-        <Swatch label="Hair colour family" hex={c.hair_color} name={c.hair_color_name} family />
+        <Swatch label="Hair colour family" hex={c.hair_color} name={c.hair_color_name} family note={c.hair_read ? `Set by you. The photo read ${c.hair_read.name || 'nothing'}.` : null} />
         <Swatch label="Brows" hex={c.eyebrow_color} />
         <Swatch label="Skin" hex={c.skin_color} />
       </div>
+      {!print.sample && <HairFix print={print} savePrint={savePrint} />}
       <div className="facts">
         <div className="fact"><span>Face shape</span><strong>{f.faceShape || 'Not read'}</strong></div>
         <div className="fact"><span>Brow shape</span><strong>{f.browShape || 'Not read'}</strong></div>
@@ -464,14 +506,15 @@ function HeadwearSection({ portraitState }) {
   return (
     <section className="sheet stack" aria-labelledby="hats">
       <h2 id="hats">Hats, caps and headbands</h2>
-      <p>Not everyone wants a wig. Try a soft cap, beanie or sun hat from any shop on yourself first, with YouCam’s hat try-on.</p>
+      <p>Not everyone wants a wig. Try a soft cap, beanie or sun hat from any shop, with YouCam’s hat try-on.</p>
+      <p className="note">Good to know: this makes a new styled photo, not an edit of yours. YouCam changes the outfit and setting, and your face can look a little different. Use it to judge the hat’s shape and colour.</p>
       <p className="sr-only" role="status">{busy ? 'Rendering your try-on…' : saved ? 'Saved to your looks.' : result ? 'Try-on ready.' : ''}</p>
       {!portrait ? (
         <PortraitPicker portrait={portrait} save={save} clear={clear} why="Head-covering try-on uses the same portrait as wig try-on." />
       ) : result ? (
         <div className="stack" ref={resultRef}>
           <img src={result.image} alt={demoLabel('Head-covering try-on', result.demo)} style={{ width: '100%', borderRadius: 16 }} />
-          <p className="fine">Styled preview: YouCam also restyles your outfit and background around the hat.</p>
+          <p className="fine">A new styled photo made by YouCam, so the outfit, setting and some face details differ from yours.</p>
           {result.demo && <div className="banner">Demo mode: this is your photo unchanged. With a YouCam key on the server, this shows the real try-on.</div>}
           <div className="row wrap">
             <button className="btn primary" aria-disabled={saved || undefined} onClick={async () => { if (saved) return; await addLook({ id: newId(), kind: 'headwear', image: result.image, label: demoLabel('Head covering', result.demo), createdAt: new Date().toISOString(), demo: result.demo }); setSaved(true); }}>

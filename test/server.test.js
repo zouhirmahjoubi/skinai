@@ -165,6 +165,60 @@ test('hairstyle try-on sends template + hair_color and brow try-on disables smoo
   assert.deepEqual(bodies.brow.effects.map((e) => e.category), ['skin_smooth', 'eyebrows', 'eyelashes', 'lip_color'], 'extras ride in the same 1-unit task');
 });
 
+test('try-ons and prints delete their YouCam tasks once the result is in hand, and failed ones too', async () => {
+  const { calls, fetchImpl } = fakeYouCam([
+    ['POST', /^\/s2s\/v2\.0\/task\/hat$/, () => ({ status: 200, data: { task_id: 'HAT' } })],
+    ['GET', /^\/s2s\/v2\.0\/task\/hat\/HAT$/, () => ({ status: 200, data: { task_status: 'success', results: { url: 'https://cdn.example/hat.jpg' } } })],
+    ['POST', /^\/s2s\/v2\.0\/task\/makeup-vto$/, () => ({ status: 200, data: { task_id: 'BAD' } })],
+    ['GET', /^\/s2s\/v2\.0\/task\/makeup-vto\/BAD$/, () => ({ status: 200, data: { task_status: 'error', error: 'error_no_face' } })],
+    ['POST', /task\/skin-tone-analysis$/, () => ({ status: 200, data: { task_id: 'TONE' } })],
+    ['GET', /task\/skin-tone-analysis\/TONE$/, () => ({ status: 200, data: { task_status: 'success', results: { color: { hair_color_name: 'Black' } } } })],
+    ['POST', /task\/face-attr-analysis$/, () => ({ status: 200, data: { task_id: 'FACE' } })],
+    ['GET', /task\/face-attr-analysis\/FACE$/, () => ({ status: 200, data: { task_status: 'success', results: { faceshape: 'Oval' } } })],
+    ['POST', /^\/s2s\/v2\.0\/task\/delete$/, () => ({ status: 200, data: {} })],
+    ['GET', /^\/hat\.jpg$/, () => new Response(Buffer.from([0xff, 0xd8, 0xff]), { status: 200, headers: { 'content-type': 'image/jpeg' } })],
+  ]);
+  const features = createLiveFeatures(createYouCamClient({ apiKey: 'k', fetchImpl, sleep: noSleep }), { fetchImpl });
+  const deletes = () => calls.filter((c) => c.path === '/s2s/v2.0/task/delete').map((c) => JSON.parse(c.body).task_id);
+
+  const hat = await features.hatTryOn({ fileId: 'F', refFileId: 'R', gender: 'female' });
+  assert.equal(hat.deleted, true);
+  const hatGet = calls.findIndex((c) => c.path === '/hat.jpg');
+  assert.ok(hatGet >= 0 && hatGet < calls.findIndex((c) => c.path === '/s2s/v2.0/task/delete'), 'the image is downloaded before the task is deleted');
+  await assert.rejects(features.browTryOn({ fileId: 'F' }), (err) => err.code === 'error_no_face');
+  const print = await features.print({ fileId: 'F' });
+  assert.equal(print.colors.hair_color_name, 'Black');
+  assert.equal(print.face.faceShape, 'Oval');
+  assert.equal(print.deleted, true);
+  assert.deepEqual(deletes(), ['HAT', 'BAD', 'TONE', 'FACE']);
+});
+
+test('the first poll waits, since no task is done the moment it starts', async () => {
+  const slept = [];
+  const { calls, fetchImpl } = fakeYouCam([
+    ['POST', /task\/hat$/, () => ({ status: 200, data: { task_id: 'T' } })],
+    ['GET', /task\/hat\/T$/, () => ({ status: 200, data: { task_status: 'success', results: {} } })],
+  ]);
+  const client = createYouCamClient({ apiKey: 'k', fetchImpl, sleep: async (ms) => slept.push([ms, calls.length]) });
+  await client.runTask('hat', {});
+  assert.deepEqual(slept, [[2000, 1]], 'one wait, after the start and before the first poll');
+});
+
+test('brow shapes are the curated list with catalog thumbnails, not every catalog row', async () => {
+  const rows = [
+    ...Array.from({ length: 20 }, (_, i) => ({ label: `Arrow${i + 2}`, category: 'Arrow', thumbnail: `https://t/a${i}.png` })),
+    { label: 'Arrow1', category: 'Arrow', thumbnail: 'https://t/arrow1.png' },
+    { label: 'Original2', category: 'Natural', thumbnail: 'https://t/orig2.png' },
+  ];
+  const fetchImpl = async () => new Response(JSON.stringify(rows), { status: 200, headers: { 'content-type': 'application/json' } });
+  const features = createLiveFeatures(createYouCamClient({ apiKey: 'k', fetchImpl, sleep: noSleep }), { fetchImpl });
+  const list = await features.browPatterns();
+  assert.deepEqual(list, [
+    { label: 'Original2', name: 'Natural', thumb: 'https://t/orig2.png' },
+    { label: 'Arrow1', name: 'Angled', thumb: 'https://t/arrow1.png' },
+  ]);
+});
+
 test('template listing follows next_token pages', async () => {
   const { fetchImpl } = fakeYouCam([
     ['GET', /template\/hair-transfer\?page_size=20$/, () => ({ status: 200, data: { templates: [{ id: 'a', title: 'A', keep_users_color: true }], next_token: 'p2' } })],
