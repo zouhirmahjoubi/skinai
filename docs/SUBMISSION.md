@@ -1,12 +1,19 @@
 # Devpost submission text (draft)
 
-**Name:** Ahead
+**Name:** Still Me
 
-**Tagline:** Try wigs, brows and hats on yourself before treatment changes how you look, and know which skin changes, and which products, to bring to your care team.
+**Tagline:** Skin, hair and brow care through cancer treatment: see which skin changes matter, keep your own look on record, and try what comes next, so you still look like you.
 
-**Track:** eCommerce VTO (wig, hat and brow try-on), with Skin AI interpreting treatment side effects.
+**Track:** Skin AI and eCommerce VTO together, with a companion agent that uses YouCam's MCP servers.
 
-Built specifically for people in cancer treatment. Ahead lowers the risk of a purchase that usually can't be returned once worn (a wig), and it stops the shelf from selling acne actives for a drug rash.
+Built for people starting chemotherapy, radiation or targeted therapy. Still Me stops the shelf from selling acne actives for a drug rash, and lowers the risk of a wig that can't be matched or returned once worn.
+
+## For the judges, in one minute
+
+- **Technological implementation:** 10 YouCam AI features, 6 over REST and 4 through YouCam's hosted MCP servers (beauty and fashion), plus live unit prices read through MCP. A companion agent calls Still Me's own rule engines as tools and proposes try-ons that run only after a tap. Every YouCam task is deleted once its result is downloaded. 72 automated tests, a live smoke test, a public repo.
+- **Design:** one journey for one person, from a print of their own hair and brows before treatment, through weekly skin and hair checks, to try-ons and printable pages for the wig fitter, the insurer and the care team. Mobile first.
+- **Potential impact:** the moment a generic skin app gets wrong. On an EGFR inhibitor, an acne-like rash is a common side effect, and over-the-counter acne products can make it worse. Still Me reads the same score drop as "tell your care team", and moves those products to *Not right now*.
+- **Quality of idea:** YouCam's try-ons used to keep a person recognisable to themselves: their own brows drawn back on, a wig in their own colour, earrings to frame the face, and a preview of how hair often grows back after chemotherapy.
 
 ## Inspiration
 
@@ -14,47 +21,41 @@ Skin, hair and brow changes are among the most visible side effects of cancer tr
 
 ## What it does
 
-- **Hair & Brow Print:** before hair changes, **Facial Color Tones Analyzer** + **Face Attributes Analyzer** record hair colour family, brow and skin colour, brow shape and thickness, and face shape.
-- **Wig try-on:** **Hairstyle Virtual Try-On** with YouCam templates (in the user's own colour on templates that support it) or any shop's wig photo (in that wig's colour). Shop links are fetched and checked against YouCam's limits before any units are spent.
-- **Head coverings:** **Hat Virtual Try-On** for caps, beanies and sun hats from any shop's product photo.
-- **Brow recreation:** **Makeup Virtual Try-On** draws the person's own measured brow shape and colour back on, with skin smoothing forced off. It can render on a photo of today without overwriting the pre-treatment print, and it picks the brow pencil closest to the measured colour (CIEDE2000). Lashes, a light under-eye concealer in the measured skin tone and lip colour can be added to the same preview at no extra cost.
-- **Skin Watch:** a guided weekly selfie analysed by **YouCam AI Skin Analysis** (8 concerns, HD/SD, detection masks).
-  - Changes within normal photo-to-photo variation are ignored, and the light is checked.
-  - Real changes are read against the user's treatment and week. For example, a falling "clear skin" score on an EGFR inhibitor is flagged as the drug's typical rash with "tell your care team", not acne advice that could make it worse.
-  - After analysis Ahead asks YouCam to delete the photo.
-- **Gentle shelf and My list:** each product's INCI list is parsed and ranked against the person's treatment and latest check-in, with reasons and the offending ingredients highlighted. Saved products go on the care-team summary and are re-checked as the skin changes.
+- **Hair & Brow Print:** before hair changes, **Facial Color Tones Analyzer** + **Face Attributes Analyzer** record hair colour family, brow and skin colour, brow shape and thickness, and face shape. If the hair colour is misread in bright light, the person can correct it and the fitting sheet marks it.
+- **Hair watch (new, via MCP):** a weekly photo of the parting and crown, scored by **Hair Density Detection** and kept by treatment week. When thinning starts, Still Me suggests a short cut and a wig fitting while the print still matches.
+- **Wig try-on:** **Hairstyle Virtual Try-On** with YouCam templates or any shop's wig photo, then **Hair Color** (via MCP) paints it in the person's own colour family.
+- **Brows, lashes, lips:** **Makeup Virtual Try-On** draws the person's own measured brow shape and colour back on, with skin smoothing off, and picks the closest brow pencil (CIEDE2000).
+- **Earrings (new, via MCP):** **Earrings Virtual Try-On** from any shop's product photo, on the person's own unchanged portrait.
+- **How your hair might grow back (new, via MCP):** **Wavy Hair** then **Hair Color** on the person's portrait, shown as an illustration, not a prediction.
+- **Hats and caps:** **Hat Virtual Try-On**, honestly labelled as a new styled photo.
+- **Skin Watch:** a weekly selfie scored by **AI Skin Analysis** (8 concerns, HD or SD, masks). Changes within photo-to-photo noise are ignored and the light is checked; real changes are read against the person's treatment and week, with "tell your care team" when it matters.
+- **Gentle shelf and My list:** every product's INCI list is ranked against the person's treatment and latest check-in, with reasons and the offending ingredients highlighted.
+- **Ask Still Me (new):** a companion agent. Ask "my face is tight and has spots, what can I use?" and it calls the skin and shelf tools; ask for "a look for my daughter's wedding in week 6" and it plans a wig in your colour, brows and lips with the live unit cost, which you run with one tap, then keep or reject. It remembers what you keep and what you say you prefer, on your device. Red-flag symptoms are caught by rules before the model answers.
 - **Fitting sheet, insurance letter and care-team summary:** printable pages for the wig specialist, the insurer ("cranial prosthesis", HCPCS A9282) and the oncology team.
 
-**For retailers:** measured brow colour picks the closest brow pencil. Wig and hat try-ons run on any shop's product photo the shopper adds (picked from the phone or pasted as a link), and a shop's feed plugs into the shelf, My list and the brow-pencil match with id, name, price, INCI list and, for shade products, a hex colour. See docs/RETAILER.md.
+**For retailers:** the measured brow colour picks the closest brow pencil; wig, hat and earring try-ons run on any shop's product photo; and a shop's feed plugs into the shelf, My list and the pencil match. See docs/RETAILER.md.
 
 ## How we built it
 
-A React (Vite) mobile web app with an on-device journal (IndexedDB), and a small Node/Express server that holds the YouCam key and proxies:
-- the File API;
-- the async task, poll and delete flow;
-- the template APIs.
+A React (Vite) mobile web app with an on-device journal (IndexedDB), and a Node/Express server that holds the YouCam key and talks to YouCam two ways:
+- over REST: the File API, the async task, poll and delete flow, and the template APIs;
+- over MCP: a small streamable-HTTP client for YouCam's beauty and fashion MCP servers, which runs Hair Color, Wavy Hair, Hair Density and Earrings by file id and reads live prices with Get-Feature-Cost.
 
-The server keeps a unit budget per IP and per server. The domain logic lives in framework-free modules shared by the browser and the tests:
+The companion agent runs on Claude through KIE's Anthropic-compatible API, with an automatic fallback to GPT-6 Luna. Its 10 tools wrap Still Me's framework-free rule modules, which the browser and the tests share:
 - a noise-aware trend model;
 - a treatment knowledge base;
 - a watch-note rule engine;
 - an INCI ingredient classifier;
 - CIEDE2000 colour matching.
 
-A demo mode and a labelled sample journey let anyone explore without spending units, and `npm run smoke` runs every YouCam call live. Every request Ahead sends was also cross-checked against the request, response and error schemas in Perfect Corp's official CLI package (`@youcam_cli/youcam-cli`), using the REA static analyser to map its client modules; the paths, versions, fields and enums all match. If one half of the print (colours or face shape) fails, the other half is kept, the user is told why, and the units for the failed half are not counted.
+The server keeps unit and chat budgets per IP and per server. A demo mode and a labelled sample journey let anyone explore without spending units, and `npm run smoke` runs the REST calls live.
 
 ## Challenges
 
-- **Telling skin change from camera change.** One selfie is noisy, so Ahead:
-  - compares YouCam's raw scores, not the flattering UI score;
-  - sets thresholds above published retake variation;
-  - keeps HD, SD and sample trend lines apart;
-  - measures face brightness at capture, and asks for a retake before escalating a borderline change in different light.
-- **Meeting the APIs' photo requirements without friction.**
-  - The capture component frames the face so YouCam's "face wider than 60% of the image" rule is met, and still reaches 480 px on 720p webcams.
-  - It produces feature-specific variants: 1024 px or less with shoulders for hairstyle, maximum resolution for HD skin.
-  - Shop photos are re-encoded in the browser.
-- **Being useful without diagnosing.** Every note is phrased as what is commonly reported, with explicit care-team escalation and a red-flag list that is always open on Today.
+- **Telling skin change from camera change.** Still Me compares YouCam's raw scores, sets thresholds above published retake variation, keeps HD, SD and sample trend lines apart, and asks for a retake before escalating a borderline change in different light.
+- **Framing real photos.** Close-up selfies can be zoomed out inside the oval, and the crop widens to keep HD when the photo allows.
+- **An agent that can't make things up.** Facts come only from tools; paid try-ons are proposals until the person taps; replies with medical claims get a caution line; red flags are matched by rules first.
+- **MCP in practice.** Some MCP tools want a different request shape from the REST docs (Earrings needs file ids both at the top level and in its info blocks), and every tool streams progress before its result.
 
 ## What we learned
 
@@ -62,11 +63,11 @@ The difference between a skin score and a skin *decision* is context. The same d
 
 ## What's next
 
-Clinician-reviewed content per drug, live Shopify/CSV catalog import, multilingual support, and a version co-designed with oncology nurses and patient groups.
+Clinician-reviewed content per drug, live Shopify or CSV catalog import, multilingual support, and a version co-designed with oncology nurses and patient groups.
 
 ## Built with
 
-YouCam API (AI Skin Analysis, Facial Color Tones Analyzer, Face Attributes & Ratio Analyzer, Hairstyle Virtual Try-On, Hat Virtual Try-On, Makeup Virtual Try-On), React, Vite, Node.js, Express, IndexedDB.
+YouCam API (AI Skin Analysis, Facial Color Tones Analyzer, Face Attributes & Ratio Analyzer, Hairstyle Virtual Try-On, Hat Virtual Try-On, Makeup Virtual Try-On) and YouCam MCP servers (Hair Color, Wavy Hair, Hair Density Detection, Earrings Virtual Try-On, Get-Feature-Cost), Claude and GPT through KIE, React, Vite, Node.js, Express, IndexedDB.
 
 ## Testing instructions
 

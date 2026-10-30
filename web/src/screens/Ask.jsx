@@ -280,7 +280,7 @@ function PlanCard({ plan, onFeedback }) {
     <div className="plan stack">
       <div className="section-title">
         <h3>{plan.title}</h3>
-        <span className="fine">{plan.units} units{plan.livePrices ? ', live prices' : ''}</span>
+        <span className="fine">{plan.units} {plan.units === 1 ? 'unit' : 'units'}{plan.livePrices ? ', live prices' : ''}</span>
       </div>
       <ol className="plan-steps">
         {plan.steps.map((s, i) => (
@@ -295,7 +295,7 @@ function PlanCard({ plan, onFeedback }) {
           First add {needsPortrait && !portrait ? 'a head-and-shoulders portrait' : 'your Hair & Brow Print'} in <a href="#/look">Hair & brows</a>, then come back and run this plan.
         </p>
       ) : state === 'ready' ? (
-        <button className="btn primary" onClick={run}>Run these try-ons ({plan.units} units)</button>
+        <button className="btn primary" onClick={run}>Run {plan.steps.length === 1 ? 'this try-on' : 'these try-ons'} ({plan.units} {plan.units === 1 ? 'unit' : 'units'})</button>
       ) : null}
       {state === 'running' && <p role="status" className="small">Rendering {KIND_LABEL[plan.steps[at]?.kind]?.toLowerCase() || 'your looks'}…</p>}
       <ErrorBox error={error} />

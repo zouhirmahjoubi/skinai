@@ -1,6 +1,6 @@
 # Plugging in a retailer
 
-Ahead's shopping features run on plain product data. To use your own catalog instead of the fictional "Shelfside" store, replace the arrays in `core/catalog.js` (or load them from your feed) with the same fields.
+Still Me's shopping features run on plain product data. To use your own catalog instead of the fictional "Shelfside" store, replace the arrays in `core/catalog.js` (or load them from your feed) with the same fields.
 
 | Field | Used for |
 | --- | --- |
@@ -16,5 +16,5 @@ Wigs and many head coverings can't be returned once worn, for hygiene reasons, a
 ## Where products appear
 
 - **Shelf:** ranked for the shopper's treatment and latest check-in. Saving adds the product to **My list**.
-- **Care-team summary:** "Products I plan to use: are these OK?", with each product's full ingredient list and anything Ahead flags.
+- **Care-team summary:** "Products I plan to use: are these OK?", with each product's full ingredient list and anything Still Me flags.
 - **Fitting sheet:** the chosen brow pencil, the saved wig and hat try-ons, and the shopper's measured colours.
