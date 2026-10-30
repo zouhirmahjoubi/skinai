@@ -1,4 +1,4 @@
-// Live smoke test: runs every YouCam feature Ahead uses, once, against the
+// Live smoke test: runs every YouCam feature Still Me uses, once, against the
 // real API. Spends roughly 16 (HD skin) or 12 (SD) + 20 (colour tones)
 // + 10 (face attributes) + 1 (brows) + 2 (hair) + 2 (hat) units.
 //

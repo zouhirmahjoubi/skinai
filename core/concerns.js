@@ -1,4 +1,4 @@
-// The eight skin signals Ahead tracks, with their YouCam HD and SD action names.
+// The eight skin signals Still Me tracks, with their YouCam HD and SD action names.
 // YouCam scores run 1-100 where HIGHER means healthier-looking skin, so every
 // label is phrased so that a high score reads as good.
 
@@ -62,7 +62,7 @@ export function normalizeSkinResult(results) {
 }
 
 /**
- * The number Ahead shows. YouCam's ui_score is deliberately flattered for
+ * The number Still Me shows. YouCam's ui_score is deliberately flattered for
  * motivation; for tracking change we show the raw model score, rounded.
  */
 export function displayScore(score) {

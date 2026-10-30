@@ -8,6 +8,8 @@ import express from 'express';
 import { createApp } from './app.js';
 import { createYouCamClient } from './youcam.js';
 import { createLiveFeatures, createDemoFeatures } from './features.js';
+import { createYouCamMcp } from './youcam-mcp.js';
+import { createAgent, createDemoAgent } from './agent.js';
 import { loadDotEnv } from './env.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -18,7 +20,10 @@ const dev = process.argv.includes('--dev');
 if (!dev) process.env.NODE_ENV ||= 'production';
 const apiKey = (process.env.YOUCAM_API_KEY || '').trim();
 const forceDemo = process.env.DEMO_MODE === '1';
-const features = apiKey && !forceDemo ? createLiveFeatures(createYouCamClient({ apiKey })) : createDemoFeatures();
+const features = apiKey && !forceDemo ? createLiveFeatures(createYouCamClient({ apiKey }), { mcp: createYouCamMcp({ apiKey }) }) : createDemoFeatures();
+// The companion runs on Claude through KIE's Anthropic-compatible API.
+const kieKey = (process.env.KIE_API_KEY || '').trim();
+const agent = kieKey ? createAgent({ apiKey: kieKey, model: (process.env.AGENT_MODEL || 'claude-sonnet-5-5').trim(), features }) : createDemoAgent({ features });
 
 // An empty or invalid value falls back to the default instead of switching a limit off.
 const envNumber = (name, fallback) => {
@@ -30,7 +35,10 @@ const accessCode = (process.env.APP_ACCESS_CODE || '').trim();
 
 const app = createApp({
   features,
+  agent,
   accessCode,
+  perIpDailyChats: envNumber('PER_IP_DAILY_CHATS', 40),
+  dailyChatBudget: envNumber('DAILY_CHAT_BUDGET', 400),
   perIpDailyUnits: envNumber('PER_IP_DAILY_UNITS', 100),
   dailyUnitBudget: envNumber('DAILY_UNIT_BUDGET', 300),
   trustProxy: envNumber('TRUST_PROXY', 1),
@@ -60,7 +68,7 @@ if (dev) {
 
 const port = Number(process.env.PORT || 8787);
 app.listen(port, () => {
-  console.log(`Ahead running at http://localhost:${port} (${features.mode} mode${dev ? ', dev' : ''})`);
+  console.log(`Still Me running at http://localhost:${port} (${features.mode} mode${dev ? ', dev' : ''})`);
   if (features.mode === 'demo') console.log('No YOUCAM_API_KEY set: using demo results. Add a key to .env for live analysis.');
   if (features.mode === 'live') {
     if (!accessCode) console.warn('APP_ACCESS_CODE is not set: anyone with the link can spend YouCam units.');

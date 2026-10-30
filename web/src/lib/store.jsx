@@ -129,7 +129,7 @@ export function StoreProvider({ children }) {
       Array.isArray(looks) &&
       looks.every(keyed) &&
       (data.list == null || (Array.isArray(data.list) && data.list.every((id) => typeof id === 'string')));
-    if (!valid) throw new Error('Not an Ahead journal file');
+    if (!valid) throw new Error('Not a Still Me journal file');
     const list = data.list || [];
     await db.replaceJournal({ profile: data.profile, print: data.print || null, list, checkins: data.checkins, looks });
     setProfile(data.profile);

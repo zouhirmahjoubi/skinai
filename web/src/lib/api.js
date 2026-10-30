@@ -1,4 +1,4 @@
-// Browser side of the Ahead API. The server holds the YouCam key.
+// Browser side of the Still Me API. The server holds the YouCam key.
 
 export class ApiError extends Error {
   constructor(message, code, fix) {
@@ -69,4 +69,12 @@ export const api = {
   browPatterns: () => request('/brows/patterns'),
   browTryOn: (opts) => request('/brows/try-on', { method: 'POST', json: opts }),
   units: () => request('/units'),
+  // Run through YouCam's MCP server.
+  hairColor: (opts) => request('/hair/color', { method: 'POST', json: opts }),
+  regrowth: (opts) => request('/hair/regrowth', { method: 'POST', json: opts }),
+  curlTemplates: () => request('/hair/curl-templates'),
+  earringTryOn: (opts) => request('/earrings/try-on', { method: 'POST', json: opts }),
+  hairDensity: (fileId) => request('/hair/density', { method: 'POST', json: { fileId } }),
+  costs: () => request('/costs'),
+  agent: (messages, context) => request('/agent', { method: 'POST', json: { messages, context } }),
 };

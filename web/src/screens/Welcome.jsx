@@ -22,7 +22,7 @@ export default function Welcome() {
   useEffect(() => {
     if (shownStep.current === step) return;
     shownStep.current = step;
-    document.title = step ? `Set up, step ${step} of 3 · Ahead` : 'Welcome · Ahead';
+    document.title = step ? `Set up, step ${step} of 3 · Still Me` : 'Welcome · Still Me';
     window.scrollTo(0, 0);
     const h1 = document.querySelector('main h1');
     if (h1) {
@@ -53,7 +53,7 @@ export default function Welcome() {
         onStart={() => setStep(1)}
         onSample={sample}
         demo={server.mode === 'demo'}
-        iosNote={isIOS && !standalone && <p className="small">On iPhone, Safari can clear websites you haven’t opened for a week. Add Ahead to your Home Screen first (Share, then Add to Home Screen) and set it up from there.</p>}
+        iosNote={isIOS && !standalone && <p className="small">On iPhone, Safari can clear websites you haven’t opened for a week. Add Still Me to your Home Screen first (Share, then Add to Home Screen) and set it up from there.</p>}
       />
     );
   }
@@ -64,7 +64,7 @@ export default function Welcome() {
         <div className="stack">
           <p className="muted">Step 1 of 3</p>
           <h1>Which treatments are you having?</h1>
-          <p className="muted">Choose all that apply. This only changes how Ahead explains skin changes; you can edit it later.</p>
+          <p className="muted">Choose all that apply. This only changes how Still Me explains skin changes; you can edit it later.</p>
         </div>
         <fieldset style={{ border: 0, padding: 0, marginInline: 0, marginBottom: 0 }}>
           <legend className="sr-only">Treatments</legend>
@@ -100,7 +100,7 @@ export default function Welcome() {
           <input className="input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
         </label>
         <label className="field">
-          <span>What should Ahead call you? (optional)</span>
+          <span>What should Still Me call you? (optional)</span>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="given-name" />
         </label>
         <div className="row">
@@ -118,9 +118,9 @@ export default function Welcome() {
         <h1>Before you start</h1>
       </div>
       <ul className="list-plain stack" style={{ marginTop: 28 }}>
-        <li>Ahead is a journal and a guide, not a diagnosis. Your care team always has the final word, and the safety signs on the Today screen mean call them now.</li>
-        <li>Skin scores come from the YouCam AI Skin Analysis service. One photo can be off, so Ahead only flags changes larger than normal photo-to-photo variation.</li>
-        <li>Photos you analyse are uploaded to YouCam (Perfect Corp.). Ahead asks YouCam to delete each photo and its results as soon as they arrive. Anything left over expires within YouCam’s retention period (up to 30 days). Ahead’s server doesn’t store photos.</li>
+        <li>Still Me is a journal and a guide, not a diagnosis. Your care team always has the final word, and the safety signs on the Today screen mean call them now.</li>
+        <li>Skin scores come from the YouCam AI Skin Analysis service. One photo can be off, so Still Me only flags changes larger than normal photo-to-photo variation.</li>
+        <li>Photos you analyse are uploaded to YouCam (Perfect Corp.). Still Me asks YouCam to delete each photo and its results as soon as they arrive. Anything left over expires within YouCam’s retention period (up to 30 days). Still Me’s server doesn’t store photos.</li>
       </ul>
       <label className="choice">
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
@@ -128,7 +128,7 @@ export default function Welcome() {
       </label>
       <div className="row">
         <button className="btn secondary" onClick={() => setStep(2)}>Back</button>
-        <button className="btn primary" style={{ flex: 1 }} onClick={finish} disabled={!consent}>Start using Ahead</button>
+        <button className="btn primary" style={{ flex: 1 }} onClick={finish} disabled={!consent}>Start using Still Me</button>
       </div>
     </div>
   );

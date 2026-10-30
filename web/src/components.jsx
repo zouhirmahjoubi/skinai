@@ -32,6 +32,7 @@ const paths = {
   shelf: 'M9 3h6v3l1.5 2.2c.3.5.5 1 .5 1.6V20a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V9.8c0-.6.2-1.1.5-1.6L9 6zM7 13h10',
   look: 'M5 20c0-5 1-8.5 3-10.5S11 7 12 7s2 .5 4 2.5S19 15 19 20M8.5 9.5C9 6 10.3 4 12 4s3 2 3.5 5.5M9.5 14.5c1.2-.6 2.2-.6 3 0M14 14.5c.8-.6 1.8-.6 3 0',
   settings: 'M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM19.4 13.5l1.6 1.2-1.8 3.1-1.9-.6a7.6 7.6 0 0 1-2 1.2l-.4 2h-3.6l-.4-2a7.6 7.6 0 0 1-2-1.2l-1.9.6-1.8-3.1 1.6-1.2a7.7 7.7 0 0 1 0-2.4L3.2 9.9 5 6.8l1.9.6a7.6 7.6 0 0 1 2-1.2l.4-2h3.6l.4 2a7.6 7.6 0 0 1 2 1.2l1.9-.6 1.8 3.1-1.6 1.2a7.7 7.7 0 0 1 0 2.4Z',
+  ask: 'M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-7l-4.5 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm4 6h.01M12 11h.01M15 11h.01',
   camera: 'M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Zm8 9a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z',
   upload: 'M12 16V4m0 0-4.5 4.5M12 4l4.5 4.5M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4',
   back: 'M15 5l-7 7 7 7',
@@ -69,7 +70,7 @@ export function TopBar({ title, back, right, mode }) {
       ) : (
         <a className="wordmark" href="#/today">
           <Logo />
-          Ahead
+          Still Me
         </a>
       )}
       {title && <span className="sr-only">{title}</span>}
@@ -86,6 +87,7 @@ const TABS = [
   ['/skin', 'skin', 'Skin'],
   ['/shelf', 'shelf', 'Shelf'],
   ['/look', 'look', 'Hair & brows'],
+  ['/ask', 'ask', 'Ask'],
 ];
 
 export function TabBar({ path }) {
@@ -478,7 +480,7 @@ function Guide({ mode }) {
       </svg>
     );
   }
-  if (mode === 'product') return null;
+  if (mode === 'product' || mode === 'scalp') return null;
   return (
     <svg className="guide" viewBox="0 0 300 400" preserveAspectRatio="none" aria-hidden="true">
       <defs>
@@ -662,7 +664,7 @@ export function Capture({ mode = 'face', ghost, maxLong = 2560, onCapture, cta =
         <Guide mode={mode} />
         {state === 'choose' && (
           <div className="light" style={{ top: 'auto', bottom: 12 }}>
-            <span className="light-pill" style={{ textAlign: 'center' }}>{mode === 'face' ? 'Your face will go in the oval.' : mode === 'portrait' ? 'Head and shoulders, hair down.' : 'One item, filling most of the picture.'}</span>
+            <span className="light-pill" style={{ textAlign: 'center' }}>{mode === 'face' ? 'Your face will go in the oval.' : mode === 'portrait' ? 'Head and shoulders, hair down.' : mode === 'scalp' ? 'Head lowered, parting and crown in view.' : 'One item, filling most of the picture.'}</span>
           </div>
         )}
         {state === 'camera' && mode !== 'product' && (
@@ -675,7 +677,7 @@ export function Capture({ mode = 'face', ghost, maxLong = 2560, onCapture, cta =
       {state === 'frame' && (
         <label className="field">
           <span>
-            {mode === 'face' ? 'Zoom in or out so your face fills the oval, then drag to centre' : mode === 'portrait' ? 'Zoom in or out so your head and shoulders fit the outline, then drag to centre' : 'Zoom and drag so the item fills the frame'}
+            {mode === 'face' ? 'Zoom in or out so your face fills the oval, then drag to centre' : mode === 'portrait' ? 'Zoom in or out so your head and shoulders fit the outline, then drag to centre' : mode === 'scalp' ? 'Zoom and drag so your parting and crown fill the frame' : 'Zoom and drag so the item fills the frame'}
           </span>
           <input
             type="range"
