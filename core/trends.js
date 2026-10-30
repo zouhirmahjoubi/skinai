@@ -2,7 +2,7 @@
 // light, angle and camera all move the scores. Published retake tests on
 // YouCam skin analysis (github.com/StuartYo/youcam-claim-guard, README "Noise
 // floor") report raw_score SDs of about 1-2 points between photos taken
-// minutes apart in the same light, and up to ~3.75 across evenings. Ahead
+// minutes apart in the same light, and up to ~3.75 across evenings. Still Me
 // therefore treats a move smaller than CHANGE as "steady" and only calls a
 // move larger than BIG_CHANGE "a lot".
 

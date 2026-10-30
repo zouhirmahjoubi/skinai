@@ -1,4 +1,4 @@
-/* Ahead design tokens.
+/* Still Me design tokens.
    Palette: Oatmeal #e8dcc6, Pine Green #1f3b2e, Soft Lilac #cbb3e8. Pine is
    the action colour in light mode; lilac takes over in dark mode and marks
    progress in both, since lavender is the awareness colour for all cancers.
@@ -208,13 +208,13 @@ main h1[tabindex='-1']:focus, main h2[tabindex='-1']:focus { outline: none; }
   box-shadow: var(--dock-shadow);
   padding-bottom: env(safe-area-inset-bottom);
 }
-.tabbar nav { position: relative; max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); }
+.tabbar nav { position: relative; max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); }
 .tabbar a { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px 12px; text-decoration: none; color: var(--ink-2); font-size: 0.8rem; text-align: center; transition: color 0.3s var(--ease-snap); }
 .tabbar a svg { width: 24px; height: 24px; transition: transform 0.45s var(--spring); }
 .tabbar a[aria-current='page'] { color: var(--accent); font-weight: 700; }
 .tabbar a[aria-current='page'] svg { transform: translateY(-1px); }
 /* A soft pill slides (with a little spring) to the current tab. */
-.tab-pill { position: absolute; z-index: 0; top: 6px; bottom: 8px; left: 0; width: 25%; padding: 0 8px; pointer-events: none; transform: translateX(calc(var(--i, 0) * 100%)); transition: transform 0.6s var(--spring), opacity 0.3s var(--ease-snap); }
+.tab-pill { position: absolute; z-index: 0; top: 6px; bottom: 8px; left: 0; width: 20%; padding: 0 6px; pointer-events: none; transform: translateX(calc(var(--i, 0) * 100%)); transition: transform 0.6s var(--spring), opacity 0.3s var(--ease-snap); }
 .tab-pill::before { content: ''; display: block; height: 100%; border-radius: var(--r-ctl); background: var(--pill); box-shadow: var(--pill-edge); }
 .tab-pill[hidden] { display: block; opacity: 0; }
 
@@ -633,3 +633,30 @@ table.grid th:first-child, table.grid td:first-child { text-align: left; }
   .dot, .chip-dot, .note, .sheet.tint, .swatch .chipcolor { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   a { color: inherit; text-decoration: none; }
 }
+
+/* Ask Still Me: the companion chat --------------------------------------------- */
+.chat { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.bubble { max-width: 92%; padding: 12px 14px; border-radius: var(--r-ctl); line-height: 1.5; }
+.bubble p + p, .bubble p + ul, .bubble ul + p { margin-top: 8px; }
+.bubble ul { padding-left: 18px; margin: 6px 0 0; }
+.bubble.user { align-self: flex-end; background: var(--accent); color: var(--paper); }
+.bubble.assistant { align-self: flex-start; background: var(--surface); border: 1px solid var(--line); }
+.bubble.thinking { color: var(--ink-2); font-size: 0.9rem; }
+.bubble .note { margin-bottom: 10px; }
+.ask-form { position: sticky; bottom: calc(var(--tabbar-h, 72px) + 8px); display: flex; gap: 8px; align-items: flex-end; padding: 8px; border-radius: var(--r-sheet); background: var(--glass, var(--surface)); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--line); }
+.ask-form textarea { flex: 1; resize: none; min-height: 44px; }
+.ask .chips .chip { text-align: left; }
+.plan { margin-top: 12px; padding: 12px; border-radius: var(--r-ctl); background: var(--tint); }
+.plan h3 { font-size: 1rem; }
+.plan-steps { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.plan-steps li[aria-current='step'] strong { color: var(--accent); }
+.lookbook { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.lookbook img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 12px; background: var(--surface); }
+.lookbook figure { margin: 0; }
+
+/* Hair watch: one bar per weekly check, longer is fuller hair. */
+.hair-checks { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.hair-checks li { display: grid; grid-template-columns: minmax(96px, auto) 1fr auto; gap: 10px; align-items: center; }
+.density-bar { height: 8px; border-radius: 999px; background: var(--tint); overflow: hidden; }
+.density-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+@media (max-width: 420px) { .hair-checks li { grid-template-columns: 1fr auto; } .hair-checks .density-bar { grid-column: 1 / -1; order: 3; } }

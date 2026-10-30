@@ -1,8 +1,8 @@
 {
-  "name": "ahead-skinai",
+  "name": "still-me",
   "version": "1.0.0",
   "private": true,
-  "description": "Ahead: skin and self-image companion for people going through cancer treatment. Built on the YouCam API (Skin Analysis, Facial Color Tones, Face Attributes, Hairstyle VTO, Makeup VTO).",
+  "description": "Still Me: skin and self-image companion for people going through cancer treatment. Built on the YouCam API (Skin Analysis, Facial Color Tones, Face Attributes, Hairstyle VTO, Makeup VTO).",
   "type": "module",
   "license": "MIT",
   "engines": {

@@ -31,7 +31,7 @@ export default function Report() {
           {profile.startDate ? `; started ${new Date(`${profile.startDate}T12:00:00`).toLocaleDateString()}` : ''}
           {phase.phase === 'during' ? ` (week ${phase.week})` : ''}. Prepared {new Date().toLocaleDateString()}.
         </p>
-        <p className="fine">Self-tracked with the Ahead app using YouCam AI Skin Analysis photos (raw model scores 1–100, higher is healthier). Not a clinical assessment.</p>
+        <p className="fine">Self-tracked with the Still Me app using YouCam AI Skin Analysis photos (raw model scores 1–100, higher is healthier). Not a clinical assessment.</p>
       </header>
 
       {!current ? (
@@ -73,7 +73,7 @@ export default function Report() {
                 </tbody>
               </table>
             </div>
-            <p className="fine" style={{ marginTop: 8 }}>Ahead treats changes under 6 raw points as photo-to-photo variation.</p>
+            <p className="fine" style={{ marginTop: 8 }}>Still Me treats changes under 6 raw points as photo-to-photo variation.</p>
           </section>
 
         </>
@@ -104,7 +104,7 @@ export default function Report() {
             {planned.map(({ product, verdict, reasons }) => (
               <li key={product.id}>
                 <strong>{product.name}</strong> ({product.line}). Ingredients: {product.ingredients}.
-                {verdict !== 'good' && <em> Ahead flags: {reasons.filter((r) => r.type !== 'good').map((r) => r.text).join('; ')}.</em>}
+                {verdict !== 'good' && <em> Still Me flags: {reasons.filter((r) => r.type !== 'good').map((r) => r.text).join('; ')}.</em>}
               </li>
             ))}
             {pencils.map((p) => (

@@ -1,56 +1,14 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useStore } from '../lib/store.jsx';
 import { api } from '../lib/api.js';
+import { withFiles, withResult, rememberFileId } from '../lib/files.js';
 import { db, newId, today } from '../lib/db.js';
 import { loadImage, cropToJpeg } from '../lib/image.js';
 import { TopBar, Capture, Steps, ErrorBox, CompareSlider, Icon } from '../components.jsx';
 import { browPatternFor, FACE_SHAPE_TIPS, LASH_STYLES, LIP_SHADES } from '../../../core/brows.js';
 import { BROW_PRODUCTS } from '../../../core/catalog.js';
 import { closest } from '../../../core/color.js';
-
-// Upload each photo once per session and reuse its YouCam file id.
-const fileIds = new Map();
-async function fileIdFor(key, dataUrl) {
-  if (fileIds.has(key)) return fileIds.get(key);
-  const blob = await (await fetch(dataUrl)).blob();
-  const { fileId } = await api.upload(blob);
-  fileIds.set(key, fileId);
-  return fileId;
-}
-// YouCam reports a file it has lost or never fully received as one of these.
-const REUPLOAD = new Set(['InvalidFileId', 'unknown_internal_error', 'error_download_image']);
-/**
- * Runs fn with a file id per photo ({ key, dataUrl, ref }). If YouCam lost a
- * file, every photo is uploaded again and fn runs once more: at most two
- * tasks per tap. A product photo (ref) that fails to upload is reported
- * against the product photo, never as a reason to retake the portrait.
- * The server deletes each live try-on task with its photos, and a failed one
- * too, so the ids are then forgotten and the next try-on uploads afresh.
- */
-async function withFiles(photos, fn) {
-  const forget = () => photos.forEach((p) => fileIds.delete(p.key));
-  const ids = () =>
-    Promise.all(
-      photos.map((p) =>
-        fileIdFor(p.key, p.dataUrl).catch((err) => {
-          if (p.ref && err.fix === 'photo') err.fix = 'ref';
-          throw err;
-        }),
-      ),
-    );
-  const run = async () => {
-    const out = await fn(...(await ids()));
-    if (out?.deleted) forget();
-    return out;
-  };
-  try {
-    return await run();
-  } catch (err) {
-    forget();
-    if (!REUPLOAD.has(err.code)) throw err;
-    return run();
-  }
-}
+import { treatmentPhase } from '../../../core/treatments.js';
 
 const demoLabel = (label, demo) => (demo ? `${label} (demo, photo unchanged)` : label);
 
@@ -216,7 +174,7 @@ function PrintSection({ retake, setRetake }) {
       const kept = { colors: !result.colors && prev?.colors ? prev.date : null, face: !result.face && prev?.face ? prev.date : null };
       const p = { date: today(), photo: shot.dataUrl, colors, face, partial: !colors || !face, errors: result.errors || null, kept, demo: Boolean(result.demo) };
       // A live print deletes its selfie on YouCam, so only a kept one is reused.
-      if (!result.deleted) fileIds.set(`print:${p.date}`, fileId);
+      if (!result.deleted) rememberFileId(`print:${p.date}`, fileId);
       await savePrint(p);
       setRetake(false);
       setJustSaved(true);
@@ -345,7 +303,7 @@ function PortraitPicker({ portrait, save, clear, why }) {
 }
 
 function WigSection({ portraitState }) {
-  const { addLook } = useStore();
+  const { addLook, print } = useStore();
   const { portrait, save, clear } = portraitState;
   const [templates, setTemplates] = useState([]);
   const [showAll, setShowAll] = useState(false);
@@ -369,6 +327,8 @@ function WigSection({ portraitState }) {
   }, [portrait?.id]);
 
   const isRef = Boolean(refPhoto || refUrl);
+  // The print's hair colour family (as corrected by the person), if it's one YouCam can paint.
+  const family = HAIR_FAMILIES[print?.colors?.hair_color_name] ? print.colors.hair_color_name : null;
   // YouCam honours hair_color only on templates with keep_users_color; a shop photo keeps its own colour.
   const colourKeepable = !isRef && chosen?.keepsColor === true;
 
@@ -382,7 +342,21 @@ function WigSection({ portraitState }) {
       const out = refPhoto
         ? await withFiles([me, { key: `ref:${refPhoto.id}`, dataUrl: refPhoto.dataUrl, ref: true }], (fileId, refFileId) => api.hairTryOn({ fileId, refFileId }))
         : await withFiles([me], (fileId) => api.hairTryOn({ fileId, templateId: refUrl ? null : chosen.id, refUrl: refUrl || undefined, keepColor: mine }));
-      setResult({ image: out.image, demo: out.demo, label: isRef ? 'Wig from a shop photo' : chosen.title, mine });
+      setResult({ id: newId(), image: out.image, demo: out.demo, label: isRef ? 'Wig from a shop photo' : chosen.title, mine });
+    } catch (err) {
+      setError(err);
+    }
+    setBusy(false);
+  }
+
+  // Paints the try-on in the hair colour family from the print (YouCam Hair Color, via MCP).
+  async function recolour() {
+    setError(null);
+    setBusy(true);
+    setSaved(false);
+    try {
+      const out = await withResult(`wig:${result.id}`, result.image, (fileId) => api.hairColor({ fileId, family }));
+      setResult((r) => ({ ...r, id: newId(), image: out.image, demo: out.demo, mine: true }));
     } catch (err) {
       setError(err);
     }
@@ -409,8 +383,14 @@ function WigSection({ portraitState }) {
           {result.demo && <div className="banner">Demo mode: this is your photo unchanged. With a YouCam key on the server, this shows the real try-on.</div>}
           <div className="row wrap">
             <button className="btn primary" onClick={saveLook} aria-disabled={saved || undefined}>{saved ? 'Saved to your looks' : 'Save to my looks'}</button>
+            {family && !result.mine && (
+              <button className="btn secondary" onClick={recolour} disabled={busy}>
+                {busy ? 'Recolouring…' : `In my own colour (${family}, 1 unit)`}
+              </button>
+            )}
             <button className="btn secondary" onClick={() => setResult(null)}>Try another</button>
           </div>
+          <ErrorBox error={error} />
         </div>
       )}
       {portrait && !result && (
@@ -555,7 +535,7 @@ function HeadwearSection({ portraitState }) {
                 </button>
               ))}
             </div>
-            <p className="fine" style={{ marginTop: 6 }}>YouCam needs this to style the outfit. Ahead never guesses it from your photo.</p>
+            <p className="fine" style={{ marginTop: 6 }}>YouCam needs this to style the outfit. Still Me never guesses it from your photo.</p>
           </fieldset>
           <ErrorBox error={error} onRetry={error?.fix === 'photo' ? clear : undefined} />
           <button className="btn primary block" onClick={tryOn} disabled={busy || tooSmall || !gender || !(refPhoto || refUrl)}>
@@ -606,7 +586,7 @@ function BrowSection({ onNeedPrint }) {
     return (
       <section className="sheet stack" aria-labelledby="brows">
         <h2 id="brows">Your brows, recreated</h2>
-        <p>Once your print is saved, Ahead can draw your natural brow shape and colour back on, a reference for brow pencils, stencils or a brow artist if your brows thin.</p>
+        <p>Once your print is saved, Still Me can draw your natural brow shape and colour back on, a reference for brow pencils, stencils or a brow artist if your brows thin.</p>
       </section>
     );
   }
@@ -832,6 +812,255 @@ function Gallery() {
   );
 }
 
+// Weekly hair check: YouCam Hair Density (via MCP) reads how much scalp shows
+// at the crown and parting. Kept on the device, read against the treatment week.
+const DENSITY_LABEL = { 'High Density': 'Full', 'Medium Density': 'Some scalp showing', 'Low Density': 'Thinning', 'Extremely Low Density': 'Mostly scalp' };
+
+function HairCheckSection() {
+  const { profile } = useStore();
+  const [checks, setChecks] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [key, setKey] = useState(0);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    db.get('hairChecks').then((c) => setChecks(Array.isArray(c) ? c : [])).catch(() => {});
+  }, []);
+
+  async function onCapture(shot) {
+    setError(null);
+    setBusy(true);
+    try {
+      const { fileId } = await api.upload(shot.blob);
+      const out = await api.hairDensity(fileId);
+      const phase = treatmentPhase(profile?.startDate);
+      const entry = { id: newId(), date: today(), week: phase.phase === 'during' ? phase.week : 0, score: out.score, term: out.term, demo: Boolean(out.demo) };
+      const next = [...checks, entry].slice(-30);
+      await db.set('hairChecks', next);
+      setChecks(next);
+      setOpen(false);
+    } catch (err) {
+      setError(err);
+      setKey((k) => k + 1);
+    }
+    setBusy(false);
+  }
+
+  const first = checks[0];
+  const last = checks[checks.length - 1];
+  const dropped = first && last && first !== last && Number(first.score) - Number(last.score) >= 0.5;
+  const thin = last && /Low/.test(last.term || '');
+  return (
+    <section className="sheet stack" aria-labelledby="hairwatch">
+      <h2 id="hairwatch">Hair watch</h2>
+      <p>Once a week, one photo of the top of your head. YouCam’s hair density analysis reads how much scalp shows at your crown and parting, so you can see thinning start and plan, rather than be surprised.</p>
+      {checks.length > 0 && (
+        <ol className="hair-checks">
+          {checks.slice(-6).map((c) => (
+            <li key={c.id}>
+              <span className="fine">{c.week ? `Week ${c.week}` : 'Before'}, {new Date(`${c.date}T12:00:00`).toLocaleDateString()}</span>
+              <span className="density-bar" aria-hidden="true"><span style={{ width: `${Math.max(4, (Number(c.score) / 3) * 100)}%` }} /></span>
+              <strong>{DENSITY_LABEL[c.term] || c.term || 'Not read'}{c.demo ? ' (demo)' : ''}</strong>
+            </li>
+          ))}
+        </ol>
+      )}
+      {(dropped || thin) && (
+        <div className="note watch" data-still>
+          <p className="note-kicker">Your hair is thinning</p>
+          <p className="small">Many people find a short cut at this point makes the change gentler. It’s also a good time for a wig fitting, while your print still matches your own hair. Your care team can tell you what to expect next.</p>
+        </div>
+      )}
+      {open ? (
+        <div className="stack">
+          <p className="fine">Face a window or lamp, then lower your head about 45° so the camera sees your parting and crown. Same spot and light each week.</p>
+          {busy ? <p role="status">Reading your photo…</p> : <Capture key={key} mode="scalp" maxLong={1600} onCapture={onCapture} cta="Take hair photo" />}
+          <ErrorBox error={error} />
+          <button className="btn quiet" onClick={() => setOpen(false)}>Not now</button>
+        </div>
+      ) : (
+        <button className="btn secondary" onClick={() => setOpen(true)}>{checks.length ? 'Add this week’s hair check (1 unit)' : 'Start hair watch (1 unit)'}</button>
+      )}
+    </section>
+  );
+}
+
+// Earrings draw the eye to the face; YouCam Earrings VTO (via MCP) puts a
+// shop's earring on the portrait.
+function EarringsSection({ portraitState }) {
+  const { addLook } = useStore();
+  const { portrait, save, clear } = portraitState;
+  const [refPhoto, setRefPhoto] = useState(null);
+  const [refUrl, setRefUrl] = useState('');
+  const [rightEar, setRightEar] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [result, setResult] = useState(null);
+  const [saved, setSaved] = useState(false);
+  const resultRef = useResultFocus(result);
+  useEffect(() => {
+    setResult(null);
+    setSaved(false);
+  }, [portrait?.id]);
+
+  async function tryOn() {
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const me = { key: `portrait:${portrait.id}`, dataUrl: portrait.dataUrl };
+      const out = refPhoto
+        ? await withFiles([me, { key: `ref:${refPhoto.id}`, dataUrl: refPhoto.dataUrl, ref: true }], (fileId, refFileId) => api.earringTryOn({ fileId, refFileId, rightEar }))
+        : await withFiles([me], (fileId) => api.earringTryOn({ fileId, refUrl, rightEar }));
+      setResult(out);
+    } catch (err) {
+      setError(err);
+    }
+    setBusy(false);
+  }
+
+  return (
+    <section className="sheet stack" aria-labelledby="earrings">
+      <h2 id="earrings">Earrings</h2>
+      <p>When hair and brows are thinner, earrings bring the eye back to your face. Try a pair from any shop on your own portrait.</p>
+      {!portrait ? (
+        <PortraitPicker portrait={portrait} save={save} clear={clear} why="Earring try-on uses the same portrait as wig try-on." />
+      ) : result ? (
+        <div className="stack" ref={resultRef}>
+          <CompareSlider before={portrait.dataUrl} after={result.image} afterLabel={result.demo ? 'Earring (demo)' : 'Earring'} />
+          {result.demo && <div className="banner">Demo mode: this is your photo unchanged. With a YouCam key on the server, this shows the real try-on.</div>}
+          <div className="row wrap">
+            <button className="btn primary" aria-disabled={saved || undefined} onClick={async () => { if (saved) return; await addLook({ id: newId(), kind: 'earrings', image: result.image, label: demoLabel('Earrings', result.demo), createdAt: new Date().toISOString(), demo: result.demo }); setSaved(true); }}>
+              {saved ? 'Saved to your looks' : 'Save to my looks'}
+            </button>
+            <button className="btn secondary" onClick={() => setResult(null)}>Try another</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <ProductPhotoPicker
+            label="Add a photo of one earring"
+            hint="A shop’s product photo of a single earring, front on. YouCam removes the background."
+            photo={refPhoto}
+            onPhoto={(p) => {
+              setRefPhoto(p);
+              if (p) setRefUrl('');
+            }}
+            url={refUrl}
+            onUrl={(u) => {
+              setRefUrl(u);
+              if (u) setRefPhoto(null);
+            }}
+            minShort={200}
+            maxLong={2048}
+            linkHint="A direct link to a .jpg or .png of the earring."
+          />
+          <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend style={{ fontWeight: 700, marginBottom: 8 }}>Which ear</legend>
+            <div className="chips">
+              {[[true, 'Right ear'], [false, 'Left ear']].map(([value, label]) => (
+                <button key={label} type="button" className="chip" aria-pressed={rightEar === value} onClick={() => setRightEar(value)}>{label}</button>
+              ))}
+            </div>
+          </fieldset>
+          <ErrorBox error={error} onRetry={error?.fix === 'photo' ? clear : undefined} />
+          <button className="btn primary block" onClick={tryOn} disabled={busy || !(refPhoto || refUrl)}>{busy ? 'Rendering your try-on…' : 'Try it on (1 unit)'}</button>
+        </>
+      )}
+    </section>
+  );
+}
+
+// Regrowth after chemotherapy often comes in curlier and greyer for a while.
+// YouCam Wavy Hair, then Hair Color (both via MCP), on the portrait.
+function RegrowthSection({ portraitState }) {
+  const { print, addLook } = useStore();
+  const { portrait, save, clear } = portraitState;
+  const [templates, setTemplates] = useState([]);
+  const [tpl, setTpl] = useState(null);
+  const [shade, setShade] = useState('Grey/White');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [result, setResult] = useState(null);
+  const [saved, setSaved] = useState(false);
+  const resultRef = useResultFocus(result);
+  const own = HAIR_FAMILIES[print?.colors?.hair_color_name] ? print.colors.hair_color_name : null;
+
+  useEffect(() => {
+    api.curlTemplates().then((r) => {
+      const list = r.templates || [];
+      setTemplates(list);
+      setTpl((t) => t || list.find((x) => /subtle/i.test(x.title)) || list[0] || null);
+    }).catch(() => {});
+  }, []);
+  useEffect(() => {
+    setResult(null);
+    setSaved(false);
+  }, [portrait?.id]);
+
+  async function run() {
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const me = { key: `portrait:${portrait.id}`, dataUrl: portrait.dataUrl };
+      const out = await withFiles([me], (fileId) => api.regrowth({ fileId, templateId: tpl?.id, family: shade }));
+      setResult({ ...out, label: `${tpl?.title || 'Curls'}, ${shade.toLowerCase()}` });
+    } catch (err) {
+      setError(err);
+    }
+    setBusy(false);
+  }
+
+  return (
+    <section className="sheet stack" aria-labelledby="regrowth">
+      <h2 id="regrowth">How your hair might grow back</h2>
+      <p>After chemotherapy, hair often grows back different for a while: curlier, finer, or another colour, often grey at first. It usually settles over months. Seeing one possibility on your own photo can make it less of a surprise.</p>
+      {!portrait ? (
+        <PortraitPicker portrait={portrait} save={save} clear={clear} why="The regrowth preview uses the same portrait as wig try-on." />
+      ) : result ? (
+        <div className="stack" ref={resultRef}>
+          <CompareSlider before={portrait.dataUrl} after={result.image} afterLabel={result.demo ? 'Regrowth (demo)' : 'One possibility'} />
+          <p className="fine">An illustration, not a prediction. Your care team can tell you what to expect after your treatment.</p>
+          {result.demo && <div className="banner">Demo mode: this is your photo unchanged. With a YouCam key on the server, this shows the real preview.</div>}
+          <div className="row wrap">
+            <button className="btn primary" aria-disabled={saved || undefined} onClick={async () => { if (saved) return; await addLook({ id: newId(), kind: 'regrowth', image: result.image, label: demoLabel(`Regrowth: ${result.label}`, result.demo), createdAt: new Date().toISOString(), demo: result.demo }); setSaved(true); }}>
+              {saved ? 'Saved to your looks' : 'Save to my looks'}
+            </button>
+            <button className="btn secondary" onClick={() => setResult(null)}>Try another</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {templates.length > 0 && (
+            <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+              <legend style={{ fontWeight: 700, marginBottom: 8 }}>Texture</legend>
+              <div className="chips">
+                {templates.slice(0, 8).map((t) => (
+                  <button key={t.id} type="button" className="chip" aria-pressed={tpl?.id === t.id} onClick={() => setTpl(t)}>{t.title}</button>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend style={{ fontWeight: 700, marginBottom: 8 }}>Colour</legend>
+            <div className="chips">
+              {Object.keys(HAIR_FAMILIES).map((name) => (
+                <button key={name} type="button" className="chip" aria-pressed={shade === name} onClick={() => setShade(name)}>
+                  {name}{name === own ? ' (yours)' : ''}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+          <ErrorBox error={error} onRetry={error?.fix === 'photo' ? clear : undefined} />
+          <button className="btn primary block" onClick={run} disabled={busy || !tpl}>{busy ? 'Rendering your preview…' : 'Show me (2 units)'}</button>
+        </>
+      )}
+    </section>
+  );
+}
+
 export default function Look() {
   const { server } = useStore();
   const [retakePrint, setRetakePrint] = useState(false);
@@ -853,9 +1082,12 @@ export default function Look() {
         <p className="muted">Keep your own look on record, and try on what comes next.</p>
       </div>
       <PrintSection retake={retakePrint} setRetake={setRetakePrint} />
+      <HairCheckSection />
       <WigSection portraitState={portraitState} />
       <BrowSection onNeedPrint={needPrint} />
       <HeadwearSection portraitState={portraitState} />
+      <EarringsSection portraitState={portraitState} />
+      <RegrowthSection portraitState={portraitState} />
       <Gallery />
       <InsuranceHelp />
     </div>

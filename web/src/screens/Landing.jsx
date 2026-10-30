@@ -28,7 +28,7 @@ const PRINT_DOTS = [
 ];
 
 // The promise, as words; '*' marks an accent word, '•' an image pill.
-const PROMISE = 'Ahead helps you • see what treatment changes before it happens, keep your own look • on record, and know when to call your care team. Made for your *calmest,* most *prepared* days.';
+const PROMISE = 'Still Me helps you • see what treatment changes before it happens, keep your own look • on record, and know when to call your care team. Made for your *calmest,* most *prepared* days.';
 const TAGS = ['Prepared', 'Calm', 'Informed', 'Confident', 'Seen'];
 
 /** A line of words, each in its own mask so they can rise in turn. */
@@ -108,7 +108,7 @@ export default function Landing({ onStart, onSample, demo, iosNote, returning = 
   const root = useRef(null);
   const orbRef = useRef(null);
   useLayoutEffect(() => landingStory(root.current, () => orbRef.current), []);
-  const startLabel = returning ? 'Open my journal' : 'Set up Ahead';
+  const startLabel = returning ? 'Open my journal' : 'Set up Still Me';
   const sampleButton = !returning && (
     <button className="btn secondary" onClick={onSample}>
       Explore a sample journey first
@@ -120,7 +120,7 @@ export default function Landing({ onStart, onSample, demo, iosNote, returning = 
       <header className="land-top">
         <div className="wordmark">
           <Logo />
-          Ahead
+          Still Me
         </div>
         <button type="button" className="linkish" onClick={returning ? onStart : onSample}>
           {returning ? 'Open my journal' : 'See a sample'}
@@ -131,16 +131,16 @@ export default function Landing({ onStart, onSample, demo, iosNote, returning = 
         <div className="hero-head">
           <p className="eyebrow pill" data-rise>Made for cancer treatment</p>
           <h1 id="hero-title" className="hero-title">
-            <span className="sr-only">Your skin, hair and brows, one step ahead.</span>
+            <span className="sr-only">Your skin, hair and brows, through treatment. Still you.</span>
             <span aria-hidden="true">
               <span className="hero-line">
                 <Words text="Your skin, hair" />
               </span>
               <span className="hero-line">
-                <Words text="and brows," />
+                <Words text="and brows, through" />
               </span>
               <span className="hero-line accent">
-                <Words text="one step" />
+                <Words text="treatment. Still" />
               </span>
             </span>
           </h1>
@@ -182,11 +182,11 @@ export default function Landing({ onStart, onSample, demo, iosNote, returning = 
         </div>
 
         <p className="hero-big" aria-hidden="true">
-          <Words text="ahead." />
+          <Words text="you." />
         </p>
 
         <p className="hero-body muted" data-rise>
-          Try wigs, brows and hats on yourself before your hair changes. Each week, a selfie shows which skin changes are real, when to call your care team, and which products are safe right now.
+          Try wigs, brows and earrings on yourself before your hair changes. Each week, a selfie shows which skin changes are real, when to call your care team, and which products are safe right now. And you can ask Still Me anything along the way.
         </p>
 
         <div className="hero-cta" data-rise>
@@ -210,11 +210,11 @@ export default function Landing({ onStart, onSample, demo, iosNote, returning = 
 
       <section className="method" aria-labelledby="method-title">
         <div className="method-text">
-          <p className="eyebrow">How Ahead works</p>
+          <p className="eyebrow">How Still Me works</p>
           <h2 id="method-title" className="display">
             Care that <em>keeps pace</em>
           </h2>
-          <p className="muted">Ahead records how you look before treatment, reads the changes week by week, and tells you which ones matter.</p>
+          <p className="muted">Still Me records how you look before treatment, reads the changes week by week, and tells you which ones matter.</p>
           <div className="steps-wrap">
             <span className="rail" aria-hidden="true">
               <span className="rail-fill" />
@@ -331,7 +331,7 @@ export default function Landing({ onStart, onSample, demo, iosNote, returning = 
       </section>
 
       <footer className="land-foot">
-        <span>Ahead · built on the YouCam API</span>
+        <span>Still Me · built on the YouCam API</span>
         <span>A journal and a guide, not a diagnosis. Your care team has the final word.</span>
       </footer>
     </div>

@@ -197,7 +197,7 @@ export default function Shelf() {
         </details>
       )}
 
-      <p className="fine">Products are from Shelfside, a fictional demo store. A retailer can plug in its own catalog and cart: Ahead only needs each product’s ingredient list.</p>
+      <p className="fine">Products are from Shelfside, a fictional demo store. A retailer can plug in its own catalog and cart: Still Me only needs each product’s ingredient list.</p>
     </div>
   );
 }

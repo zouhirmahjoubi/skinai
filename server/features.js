@@ -1,4 +1,4 @@
-// The YouCam features Ahead uses, in two interchangeable implementations:
+// The YouCam features Still Me uses, in two interchangeable implementations:
 // `live` calls the real API; `demo` returns clearly-flagged synthetic results
 // so the app can be explored without an API key or spending units.
 
@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 import { dstActionsFor, normalizeSkinResult, CONCERNS } from '../core/concerns.js';
 import { browEffects, normalizeFaceAttributes, BROW_PATTERNS } from '../core/brows.js';
 import { downloadAsDataUrl } from './youcam.js';
-import { explain } from './errors.js';
+import { explain, YouCamError } from './errors.js';
 
 const EYEBROW_CATALOG_URL = 'https://plugins-media.makeupar.com/wcm-saas/patterns/eyebrows.json';
 const TEMPLATE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -14,13 +14,32 @@ const TEMPLATE_TTL_MS = 6 * 60 * 60 * 1000;
 // the soft caps and beanies people wear during hair loss.
 const HAT_STYLE = 'style_warm_cozy';
 
-export function createLiveFeatures(client, { fetchImpl = fetch } = {}) {
+// Hair colour families from the print, as the shade a regrowth or wig
+// recolour is painted in. Grey is how regrowth often starts after chemo.
+export const HAIR_SHADES = { Black: '#1f1b19', Brown: '#5a3a24', Auburn: '#7b3a22', Red: '#a5482a', Blonde: '#c9a46a', 'Grey/White': '#b9b6b0' };
+const isHex = (v) => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
+
+export function createLiveFeatures(client, { fetchImpl = fetch, mcp = null } = {}) {
   let templateCache = null;
   let browCache = null;
-  const download = (url) => (url ? downloadAsDataUrl(url, fetchImpl).catch(() => null) : null);
+  let curlCache = null;
   // Asks YouCam to delete a task with its input photos and outputs (best effort;
   // otherwise they expire under its retention period). True when it is gone.
   const forget = (taskId) => (taskId ? client.deleteTask(taskId).then(() => true, () => false) : Promise.resolve(false));
+  const download = (url) => (url ? downloadAsDataUrl(url, fetchImpl).catch(() => null) : null);
+  const needMcp = () => {
+    if (!mcp) throw new YouCamError('This preview needs the YouCam MCP connection.', 'McpUnavailable', 503);
+    return mcp;
+  };
+  // An MCP-run try-on: download the image, then delete the task, like tryOn().
+  async function mcpImage(server, tool, request) {
+    const run = await needMcp().runTool(server, tool, request);
+    const image = await downloadAsDataUrl(run.results.url, fetchImpl).catch(async (err) => {
+      await forget(run.taskId);
+      throw err;
+    });
+    return { image, deleted: await forget(run.taskId) };
+  }
 
   // A try-on: run it, download the image, then delete the task, success or not.
   // The inputs go with it, so the browser uploads the photos afresh next time.
@@ -43,7 +62,7 @@ export function createLiveFeatures(client, { fetchImpl = fetch } = {}) {
     mode: 'live',
 
     async upload(buffer, info) {
-      const fileId = await client.uploadImage(buffer, { contentType: info.type, fileName: `ahead.${info.ext}` });
+      const fileId = await client.uploadImage(buffer, { contentType: info.type, fileName: `stillme.${info.ext}` });
       return { fileId };
     },
 
@@ -128,6 +147,56 @@ export function createLiveFeatures(client, { fetchImpl = fetch } = {}) {
 
     async browTryOn({ fileId, ...opts }) {
       return tryOn('makeup-vto', { src_file_id: fileId, version: '1.0', effects: browEffects(opts) });
+    },
+
+    // The next four run through YouCam's MCP servers (beauty and fashion):
+    // the MCP tool polls its own task, then the task is deleted over REST.
+    async hairColor({ fileId, hex }) {
+      return mcpImage('beauty', 'AI-Hair-Color-Virtual-Try-On', { src_file_id: fileId, pattern: { name: 'full' }, palettes: [{ color: hex, color_intensity: 85 }] });
+    },
+
+    // "Chemo curls": regrowth often comes back curlier and greyer for a while.
+    // Curls first, then the new photo is recoloured: two tasks, two units.
+    async regrowth({ fileId, templateId, hex }) {
+      const curls = await mcpImage('beauty', 'AI-Wavy-Hair-Virtual-Try-On', { src_file_id: fileId, template_id: templateId });
+      if (!hex) return curls;
+      const buf = Buffer.from(curls.image.split(',')[1], 'base64');
+      const type = curls.image.slice(5, curls.image.indexOf(';'));
+      const curledId = await client.uploadImage(buf, { contentType: type, fileName: `regrowth.${type === 'image/png' ? 'png' : 'jpg'}` });
+      return mcpImage('beauty', 'AI-Hair-Color-Virtual-Try-On', { src_file_id: curledId, pattern: { name: 'full' }, palettes: [{ color: hex, color_intensity: 90 }] });
+    },
+
+    async curlTemplates() {
+      if (curlCache) return curlCache;
+      const payload = await needMcp().callTool('beauty', 'AI-Wavy-Hair-Virtual-Try-On-Templates', {});
+      const list = payload.data?.templates || payload.templates || payload.data || [];
+      curlCache = (Array.isArray(list) ? list : [])
+        .map((t) => ({ id: t.id, title: String(t.title || t.id).replace(/​/g, '').trim(), category: t.category_name || null, thumb: t.thumb || t.thumbnail || null }))
+        .filter((t) => t.id);
+      return curlCache;
+    },
+
+    async earringTryOn({ fileId, refFileId, rightEar = true }) {
+      // The MCP tool wants the file ids both at the top level and in the info blocks.
+      return mcpImage('fashion', 'AI-Earrings-Virtual-Try-On', {
+        src_file_id: fileId,
+        ref_file_ids: [refFileId],
+        source_info: { name: fileId },
+        object_infos: [{ name: refFileId, parameter: { earring_need_remove_background: true, earring_is_right_ear: Boolean(rightEar) } }],
+      });
+    },
+
+    // Scalp visibility at the crown and parting, from a photo with the head lowered ~45°.
+    async hairDensity({ fileId }) {
+      const run = await needMcp().runTool('beauty', 'AI-Hair-Density-Detection', { src_file_id: fileId });
+      const d = run.results.hair_density || {};
+      const score = Number(d.mapping);
+      return { score: Number.isFinite(score) ? Math.round(score * 100) / 100 : null, term: d.term || null, deleted: await forget(run.taskId) };
+    },
+
+    // Live unit prices from YouCam's MCP Get-Feature-Cost (free).
+    async unitCosts() {
+      return needMcp().featureCosts();
     },
 
     async hairTemplates() {
@@ -236,6 +305,29 @@ export function createDemoFeatures() {
     async browTryOn({ fileId }) {
       await pause(700);
       return { image: asDataUrl(fileId), demo: true };
+    },
+    async hairColor({ fileId }) {
+      await pause(700);
+      return { image: asDataUrl(fileId), demo: true };
+    },
+    async regrowth({ fileId }) {
+      await pause(900);
+      return { image: asDataUrl(fileId), demo: true };
+    },
+    async curlTemplates() {
+      return [{ id: 'demo_curls', title: 'Soft curls', thumb: null }];
+    },
+    async earringTryOn({ fileId }) {
+      await pause(700);
+      return { image: asDataUrl(fileId), demo: true };
+    },
+    async hairDensity({ fileId }) {
+      await pause(600);
+      const score = Math.round((1.4 + seeded(fileId)() * 1.5) * 100) / 100;
+      return { score, term: score >= 2.25 ? 'High Density' : score >= 1.5 ? 'Medium Density' : 'Low Density', demo: true };
+    },
+    async unitCosts() {
+      return {};
     },
     async hairTemplates() {
       return DEMO_TEMPLATES;

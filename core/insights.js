@@ -31,7 +31,7 @@ export function watchNotes(profile, comparison, now = new Date(), { skinHex } = 
       id: 'baseline',
       level: 'info',
       title: 'Baseline saved',
-      body: 'This is your reference photo. Take your next check-in in the same spot and light, so Ahead can tell real skin changes from camera changes.',
+      body: 'This is your reference photo. Take your next check-in in the same spot and light, so Still Me can tell real skin changes from camera changes.',
       avoid: [],
       needs: [],
     });
@@ -113,7 +113,7 @@ export function watchNotes(profile, comparison, now = new Date(), { skinHex } = 
       level: 'watch',
       title: drop,
       concerns: [row.key],
-      body: 'Ahead doesn’t have this change on its list for your treatments. It could still come from treatment, or from the weather, a new product or the photo. Keep checking in, and tell your care team if it keeps going down, hurts, itches or spreads.',
+      body: 'Still Me doesn’t have this change on its list for your treatments. It could still come from treatment, or from the weather, a new product or the photo. Keep checking in, and tell your care team if it keeps going down, hurts, itches or spreads.',
       careTeam: treatments.includes('immuno') ? 'On immunotherapy, tell your care team about any new skin change, even if it seems minor.' : null,
       concern: row.key,
       avoid: [],
@@ -149,7 +149,7 @@ export function watchNotes(profile, comparison, now = new Date(), { skinHex } = 
       body: improved.length
         ? `${improved.map((r) => CONCERN_BY_KEY[r.key].label).join(', ')} ${improved.length > 1 ? 'are' : 'is'} up since your first photo. Keep your routine gentle and keep checking in weekly.`
         : 'No change on your face bigger than normal photo-to-photo variation. Keep your routine gentle and keep checking in weekly.',
-      careTeam: `Still tell your care team about any new rash, itch, soreness or skin change ${where}, whatever these scores say. Ahead only sees the skin on your face in this photo, and it can’t pick up itch or pain.`,
+      careTeam: `Still tell your care team about any new rash, itch, soreness or skin change ${where}, whatever these scores say. Still Me only sees the skin on your face in this photo, and it can’t pick up itch or pain.`,
       avoid: [],
       needs: [],
     });

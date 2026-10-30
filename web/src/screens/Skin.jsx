@@ -83,7 +83,7 @@ export default function Skin() {
           <li>Same place, same time of day, facing the same window or lamp.</li>
           <li>Clean face: no makeup, glasses off, hair back from your forehead.</li>
           <li>Look straight at the camera with a neutral face.</li>
-          <li>A sharp photo from your phone’s camera app gives HD analysis (at least 1080 px wide after framing). Webcams usually give SD. Ahead only compares like with like.</li>
+          <li>A sharp photo from your phone’s camera app gives HD analysis (at least 1080 px wide after framing). Webcams usually give SD. Still Me only compares like with like.</li>
         </ul>
       </section>
     </div>

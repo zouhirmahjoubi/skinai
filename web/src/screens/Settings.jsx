@@ -34,7 +34,7 @@ export default function Settings() {
     const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), profile, print, checkins, looks, list }, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `ahead-journal-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `still-me-journal-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
   }
 
@@ -46,7 +46,7 @@ export default function Settings() {
       await importJournal(JSON.parse(await f.text()));
       go('/today');
     } catch {
-      setDataMsg('That file couldn’t be read as an Ahead journal. Your current journal was left unchanged.');
+      setDataMsg('That file couldn’t be read as a Still Me journal. Your current journal was left unchanged.');
     }
   }
 
@@ -102,7 +102,7 @@ export default function Settings() {
         <p>
           {server.mode === 'live' && (svcError || 'Connected to the YouCam API.')}
           {server.mode === 'demo' && 'Demo mode: the server has no YouCam API key, so results are simulated.'}
-          {server.mode === 'offline' && 'The Ahead server can’t be reached.'}
+          {server.mode === 'offline' && 'The Still Me server can’t be reached.'}
           {server.mode === 'unknown' && 'Checking…'}
         </p>
         {units !== null && <p className="small">YouCam units remaining: <strong>{units}</strong></p>}
@@ -126,7 +126,7 @@ export default function Settings() {
         <button className="btn secondary" onClick={() => restoreInput.current?.click()}>Restore from a file</button>
         <input ref={restoreInput} type="file" accept="application/json,.json" hidden onChange={restore} />
         <button className="btn secondary" onClick={async () => { if (window.confirm('Replace your journal with the sample journey?')) { await loadSample(); go('/today'); } }}>Load sample journey</button>
-        <button className="btn secondary" style={{ color: 'var(--call)' }} onClick={async () => { if (window.confirm('Delete everything Ahead has stored on this device?')) { await resetAll(); go('/today'); } }}>Delete everything</button>
+        <button className="btn secondary" style={{ color: 'var(--call)' }} onClick={async () => { if (window.confirm('Delete everything Still Me has stored on this device?')) { await resetAll(); go('/today'); } }}>Delete everything</button>
         {dataMsg && <p className="fine" role="status">{dataMsg}</p>}
       </section>
 
@@ -137,13 +137,13 @@ export default function Settings() {
       </section>
 
       <section className="sheet stack" aria-labelledby="about">
-        <h2 id="about">About Ahead</h2>
-        <p className="small">See the welcome page again: what Ahead does and how it works. Your journal stays as it is.</p>
+        <h2 id="about">About Still Me</h2>
+        <p className="small">See the welcome page again: what Still Me does and how it works. Your journal stays as it is.</p>
         <a className="btn secondary" href="#/welcome">Open the welcome page</a>
       </section>
 
       <section className="stack fine">
-        <p>Ahead is a self-tracking tool, not a medical device, and doesn’t diagnose or treat any condition. Always follow your care team’s advice.</p>
+        <p>Still Me is a self-tracking tool, not a medical device, and doesn’t diagnose or treat any condition. Always follow your care team’s advice.</p>
         <p>Skin, colour, face, hairstyle, hat and makeup analysis by the YouCam API (Perfect Corp.).</p>
       </section>
     </div>

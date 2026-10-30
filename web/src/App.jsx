@@ -9,6 +9,7 @@ import CheckIn from './screens/CheckIn.jsx';
 import Result from './screens/Result.jsx';
 import Shelf from './screens/Shelf.jsx';
 import Look from './screens/Look.jsx';
+import Ask from './screens/Ask.jsx';
 import Report from './screens/Report.jsx';
 import FittingSheet from './screens/FittingSheet.jsx';
 import Settings from './screens/Settings.jsx';
@@ -27,6 +28,7 @@ const SCREENS = {
   '/result': Result,
   '/shelf': Shelf,
   '/look': Look,
+  '/ask': Ask,
   '/report': Report,
   '/fitting': FittingSheet,
   '/settings': Settings,
@@ -43,6 +45,7 @@ const TITLES = {
   '/result': 'Check-in result',
   '/shelf': 'Your gentle shelf',
   '/look': 'Hair & brows',
+  '/ask': 'Ask',
   '/report': 'Care-team summary',
   '/fitting': 'Fitting sheet',
   '/settings': 'Settings',
@@ -73,7 +76,7 @@ export default function App() {
   // Name each screen and move focus to its heading, so screen readers hear the change.
   useEffect(() => {
     if (!ready) return;
-    document.title = `${onboarding ? 'Welcome' : TITLES[route.path] || 'Today'} · Ahead`;
+    document.title = `${onboarding ? 'Welcome' : TITLES[route.path] || 'Today'} · Still Me`;
     if (firstView.current) {
       firstView.current = false;
       return;

@@ -1,5 +1,5 @@
 // A clearly-labelled sample journey so judges and first-time users can see
-// how Ahead reads a treatment course without spending API units. The scores
+// how Still Me reads a treatment course without spending API units. The scores
 // are synthetic but follow the documented EGFR-inhibitor pattern: an
 // acne-like rash in the first weeks, then dryness.
 

@@ -1,5 +1,5 @@
 # One-click deploy on Render (https://render.com/docs/blueprint-spec).
-# Set YOUCAM_API_KEY and APP_ACCESS_CODE in the Render dashboard.
+# Set YOUCAM_API_KEY, APP_ACCESS_CODE and KIE_API_KEY (the companion) in the Render dashboard.
 # The free plan sleeps when idle (first request ~1 min); use a paid plan or an
 # uptime ping on /api/status during judging.
 services:
@@ -23,3 +23,11 @@ services:
         value: 300
       - key: TRUST_PROXY
         value: 1
+      - key: KIE_API_KEY
+        sync: false
+      - key: AGENT_MODEL
+        value: claude-sonnet-5-5
+      - key: PER_IP_DAILY_CHATS
+        value: 40
+      - key: DAILY_CHAT_BUDGET
+        value: 400

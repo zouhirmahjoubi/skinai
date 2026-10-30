@@ -1,5 +1,5 @@
 // What treatments commonly do to skin, hair and brows, and when. Written for
-// patients, deliberately conservative: Ahead never diagnoses, it explains what
+// patients, deliberately conservative: Still Me never diagnoses, it explains what
 // is commonly reported and when to bring a change to the care team.
 //
 // Sources (see README "Clinical grounding"): NCODA PQI "Managing EGFR
@@ -73,7 +73,7 @@ export const TREATMENTS = {
         concern: 'redness',
         // On brown and black skin the reaction often shows as darkening, not red.
         alsoConcerns: ['texture', 'age_spot'],
-        body: 'Skin in the treated area often turns pink or red (on brown or black skin it may look darker or purplish instead), then dry, itchy or peeling, usually starting two to three weeks in. Ahead only sees your face, so this applies most if your face or neck is in the treatment field.',
+        body: 'Skin in the treated area often turns pink or red (on brown or black skin it may look darker or purplish instead), then dry, itchy or peeling, usually starting two to three weeks in. Still Me only sees your face, so this applies most if your face or neck is in the treatment field.',
         careTeam: 'Tell your radiation team about any skin change in the treated area, and ask what to put on it. Teams differ on whether to wash creams off before a session, so follow what yours says, and avoid thick layers right before treatment.',
         needs: ['soothing', 'humectant'],
         callIf: 'much-worse',

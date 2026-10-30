@@ -94,12 +94,12 @@ export async function fetchRefImage(url, { maxLongSide, minSide = 0, types = nul
     }
     const buf = Buffer.concat(chunks, n);
     const info = sniffImage(buf);
-    if (!info) throw new RefImageError('error_decode_image', 'That link isn’t a JPG or PNG photo (many shops serve WebP). Save the picture and add it from your phone; Ahead will convert it.');
+    if (!info) throw new RefImageError('error_decode_image', 'That link isn’t a JPG or PNG photo (many shops serve WebP). Save the picture and add it from your phone; Still Me will convert it.');
     if (types && !types.includes(info.type)) {
-      throw new RefImageError('error_decode_image', 'This try-on needs a JPG photo, and that link is a PNG. Save the picture and add it from your phone; Ahead will convert it.');
+      throw new RefImageError('error_decode_image', 'This try-on needs a JPG photo, and that link is a PNG. Save the picture and add it from your phone; Still Me will convert it.');
     }
     if (maxLongSide && Math.max(info.width, info.height) > maxLongSide) {
-      throw new RefImageError('error_exceed_max_image_size', `That photo is ${info.width}×${info.height} px, and YouCam needs ${maxLongSide} px or less on the long side. Save it and add it from your phone; Ahead will shrink it for you.`);
+      throw new RefImageError('error_exceed_max_image_size', `That photo is ${info.width}×${info.height} px, and YouCam needs ${maxLongSide} px or less on the long side. Save it and add it from your phone; Still Me will shrink it for you.`);
     }
     if (minSide && Math.min(info.width, info.height) < minSide) {
       throw new RefImageError('error_below_min_image_size', `That photo is only ${info.width}×${info.height} px; at least ${minSide} px is needed. Try a larger product photo.`);

@@ -6,14 +6,16 @@ import express from 'express';
 import { sniffImage, skinTierFor } from './image-info.js';
 import { YouCamError, explain } from './errors.js';
 import { fetchRefImage, RefImageError } from './ref-image.js';
+import { HAIR_SHADES } from './features.js';
 
 const MAX_UPLOAD = 10 * 1024 * 1024;
 
 // YouCam units per call (docs.perfectcorp.com unit tables): Skin Analysis
 // 5-8 concerns = 12 SD / 16 HD; Facial Color Tones 20 + Face Attributes
 // (1-5 features) 10; Hairstyle VTO v2.1 2; Hat VTO 2; Makeup VTO 1.
-// Skin tone 20 + face attributes 10 make up the print.
-export const UNIT_COST = { skinHd: 16, skinSd: 12, tone: 20, face: 10, print: 30, hair: 2, hat: 2, brows: 1 };
+// Hair Color 1; Wavy Hair 1; Earrings (one) 1; Hair Density 1. Skin tone 20 +
+// face attributes 10 make up the print; curls + recolour make up a regrowth preview.
+export const UNIT_COST = { skinHd: 16, skinSd: 12, tone: 20, face: 10, print: 30, hair: 2, hat: 2, brows: 1, hairColor: 1, regrowth: 2, earrings: 1, density: 1 };
 
 const CSP = [
   "default-src 'self'",
@@ -51,7 +53,10 @@ const EITHER_PHOTO = {
 
 export function createApp({
   features,
+  agent = null,
   accessCode = '',
+  perIpDailyChats = 40,
+  dailyChatBudget = 400,
   perIpDailyUnits = 100,
   dailyUnitBudget = 300,
   perIpDailyUploads = 150,
@@ -87,6 +92,9 @@ export function createApp({
   });
   api.get('/hair/templates', wrap(async (req, res) => res.json({ templates: await features.hairTemplates() })));
   api.get('/brows/patterns', wrap(async (req, res) => res.json({ patterns: await features.browPatterns() })));
+  api.get('/hair/curl-templates', wrap(async (req, res) => res.json({ templates: await features.curlTemplates() })));
+  // Live unit prices, read through YouCam's MCP server (free).
+  api.get('/costs', wrap(async (req, res) => res.json({ costs: await features.unitCosts().catch(() => ({})) })));
 
   api.use((req, res, next) => {
     if (!accessCode) return next();
@@ -103,6 +111,8 @@ export function createApp({
   let serverUnits = 0;
   const usage = new Map();
   const uploads = new Map();
+  const chats = new Map();
+  let serverChats = 0;
   const rollDay = () => {
     const d = new Date().toISOString().slice(0, 10);
     if (d !== day) {
@@ -110,6 +120,8 @@ export function createApp({
       serverUnits = 0;
       usage.clear();
       uploads.clear();
+      chats.clear();
+      serverChats = 0;
     }
   };
   const limited = (res, code, message) => res.status(429).json({ error: { code, fix: 'service', message } });
@@ -237,6 +249,61 @@ export function createApp({
     const ref = await resolveRef(req, { refFileId, refUrl }, { minSide: 512, maxLongSide: 4096 });
     if (!ref) throw badRequest('MissingStyle', 'Add a photo of the hat, cap or headband.', 'ref');
     res.json(await asRefErrors(() => features.hatTryOn({ fileId, refFileId: ref, gender }), 'head-covering'));
+  }));
+
+  // Recolours a photo (a wig try-on, or the portrait) in a hair colour family or hex.
+  api.post('/hair/color', quota(() => UNIT_COST.hairColor), wrap(async (req, res) => {
+    const { fileId, family, hex } = req.body || {};
+    requireFileId(fileId);
+    const shade = HAIR_SHADES[family] || (typeof hex === 'string' && /^#[0-9a-f]{6}$/i.test(hex) ? hex : null);
+    if (!shade) throw badRequest('MissingShade', 'Choose a hair colour.', 'service');
+    res.json(await features.hairColor({ fileId, hex: shade }));
+  }));
+
+  api.post('/hair/regrowth', quota(() => UNIT_COST.regrowth), wrap(async (req, res) => {
+    const { fileId, templateId, family } = req.body || {};
+    requireFileId(fileId);
+    const templates = await features.curlTemplates();
+    // Without a choice, the softest texture (YouCam lists a men's style first).
+    const template = templates.find((t) => t.id === templateId) || templates.find((t) => /subtle/i.test(t.title)) || templates[0];
+    if (!template) throw badRequest('NoTemplates', 'Regrowth previews aren’t available right now.', 'service');
+    res.json({ ...(await features.regrowth({ fileId, templateId: template.id, hex: HAIR_SHADES[family] || null })), templateId: template.id });
+  }));
+
+  api.post('/earrings/try-on', quota(() => UNIT_COST.earrings), wrap(async (req, res) => {
+    const { fileId, refUrl, refFileId, rightEar } = req.body || {};
+    requireFileId(fileId);
+    const ref = await resolveRef(req, { refFileId, refUrl }, { minSide: 200, maxLongSide: 4096 });
+    if (!ref) throw badRequest('MissingStyle', 'Add a photo of the earring.', 'ref');
+    res.json(await asRefErrors(() => features.earringTryOn({ fileId, refFileId: ref, rightEar: rightEar !== false }), 'earring'));
+  }));
+
+  api.post('/hair/density', quota(() => UNIT_COST.density), wrap(async (req, res) => {
+    requireFileId(req.body?.fileId);
+    res.json(await features.hairDensity({ fileId: req.body.fileId }));
+  }));
+
+  // The companion: a chat budget per IP and per server, like the unit budget.
+  api.post('/agent', (req, res, next) => {
+    if (!agent) return res.status(503).json({ error: { code: 'AgentUnavailable', fix: 'service', message: 'The companion isn’t set up on this server.' } });
+    rollDay();
+    const key = req.ip || 'unknown';
+    const n = chats.get(key) || 0;
+    if (perIpDailyChats && n >= perIpDailyChats) return limited(res, 'DailyLimit', 'You’ve reached today’s companion limit for this demo. Please come back tomorrow.');
+    if (dailyChatBudget && serverChats >= dailyChatBudget) return limited(res, 'DemoBudget', 'The companion has answered all it can for today. Please come back tomorrow.');
+    chats.set(key, n + 1);
+    serverChats += 1;
+    next();
+  }, wrap(async (req, res) => {
+    try {
+      res.json(await agent.respond({ messages: req.body?.messages, context: req.body?.context }));
+    } catch (err) {
+      if (err.code === 'EmptyQuestion') throw badRequest('EmptyQuestion', 'Ask a question first.', 'service');
+      logger.warn?.(`[agent] ${err.code || 'error'}: ${err.message}`);
+      const e = badRequest(err.code === 'RateLimitExceeded' ? 'RateLimitExceeded' : 'AgentUnavailable', 'The companion couldn’t answer just now. Please try again in a moment.', 'service');
+      e.status = 503;
+      throw e;
+    }
   }));
 
   api.post('/brows/try-on', quota(() => UNIT_COST.brows), wrap(async (req, res) => {
