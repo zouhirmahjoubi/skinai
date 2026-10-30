@@ -37,7 +37,7 @@ export default function FittingSheet() {
           {print.photo && <img src={print.photo} alt="Reference selfie" style={{ width: 140, borderRadius: 14 }} />}
           <table className="grid" style={{ flex: '1 1 220px' }}>
             <tbody>
-              <tr><th scope="row">Hair colour family</th><td>{c.hair_color_name || '–'}</td></tr>
+              <tr><th scope="row">Hair colour family</th><td>{c.hair_color_name ? `${c.hair_color_name}${c.hair_read ? ' (set by me)' : ''}` : '–'}</td></tr>
               <tr><th scope="row">Brow colour</th><td>{c.eyebrow_color ? <><span className="dot" style={{ background: c.eyebrow_color }} aria-hidden="true" />{c.eyebrow_color}</> : '–'}</td></tr>
               <tr><th scope="row">Skin tone</th><td>{c.skin_color ? <><span className="dot" style={{ background: c.skin_color }} aria-hidden="true" />{c.skin_color}</> : '–'}</td></tr>
               <tr><th scope="row">Face shape</th><td>{f.faceShape || '–'}</td></tr>

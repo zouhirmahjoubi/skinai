@@ -18,6 +18,26 @@ export function createLiveFeatures(client, { fetchImpl = fetch } = {}) {
   let templateCache = null;
   let browCache = null;
   const download = (url) => (url ? downloadAsDataUrl(url, fetchImpl).catch(() => null) : null);
+  // Asks YouCam to delete a task with its input photos and outputs (best effort;
+  // otherwise they expire under its retention period). True when it is gone.
+  const forget = (taskId) => (taskId ? client.deleteTask(taskId).then(() => true, () => false) : Promise.resolve(false));
+
+  // A try-on: run it, download the image, then delete the task, success or not.
+  // The inputs go with it, so the browser uploads the photos afresh next time.
+  async function tryOn(feature, body) {
+    let run;
+    try {
+      run = await client.runTaskWithId(feature, body);
+    } catch (err) {
+      await forget(err.taskId);
+      throw err;
+    }
+    const image = await downloadAsDataUrl(run.results.url, fetchImpl).catch(async (err) => {
+      await forget(run.taskId);
+      throw err;
+    });
+    return { image, deleted: await forget(run.taskId) };
+  }
 
   return {
     mode: 'live',
@@ -61,13 +81,16 @@ export function createLiveFeatures(client, { fetchImpl = fetch } = {}) {
     // structure (face shape, brow shape and thickness).
     async print({ fileId }) {
       const [tone, face] = await Promise.allSettled([
-        client.runTask('skin-tone-analysis', { src_file_id: fileId, face_angle_strictness_level: 'medium' }),
-        client.runTask('face-attr-analysis', {
+        client.runTaskWithId('skin-tone-analysis', { src_file_id: fileId, face_angle_strictness_level: 'medium' }),
+        client.runTaskWithId('face-attr-analysis', {
           src_file_id: fileId,
           features: ['faceShape', 'eyebrowShape', 'eyebrowThickness'],
           face_angle_strictness_level: 'medium',
         }),
       ]);
+      // Both readings are plain data, already in hand: delete the tasks and the selfie.
+      const taskIds = [tone, face].map((r) => (r.status === 'fulfilled' ? r.value.taskId : r.reason?.taskId));
+      const deleted = (await Promise.all(taskIds.map(forget))).every(Boolean);
       if (tone.status === 'rejected' && face.status === 'rejected') {
         throw tone.reason?.billed ? tone.reason : face.reason?.billed ? face.reason : tone.reason;
       }
@@ -77,13 +100,14 @@ export function createLiveFeatures(client, { fetchImpl = fetch } = {}) {
         const code = r.reason?.code || 'TaskFailed';
         return { code, ...explain(code), billed: Boolean(r.reason?.billed) };
       };
-      const colors = tone.status === 'fulfilled' ? tone.value?.color || null : null;
-      const faceAttrs = face.status === 'fulfilled' ? normalizeFaceAttributes(face.value) : null;
+      const colors = tone.status === 'fulfilled' ? tone.value.results?.color || null : null;
+      const faceAttrs = face.status === 'fulfilled' ? normalizeFaceAttributes(face.value.results) : null;
       return {
         colors,
         face: faceAttrs,
         partial: !colors || !faceAttrs,
         errors: { colors: why(tone), face: why(face) },
+        deleted,
       };
     },
 
@@ -95,18 +119,15 @@ export function createLiveFeatures(client, { fetchImpl = fetch } = {}) {
         body.template_id = templateId;
         body.hair_color = keepColor ? 'src' : 'ref';
       } else body.ref_file_id = refFileId;
-      const results = await client.runTask('hair-transfer', body);
-      return { image: await downloadAsDataUrl(results.url, fetchImpl) };
+      return tryOn('hair-transfer', body);
     },
 
     async hatTryOn({ fileId, refFileId, gender }) {
-      const results = await client.runTask('hat', { src_file_id: fileId, ref_file_id: refFileId, gender, style: HAT_STYLE });
-      return { image: await downloadAsDataUrl(results.url, fetchImpl) };
+      return tryOn('hat', { src_file_id: fileId, ref_file_id: refFileId, gender, style: HAT_STYLE });
     },
 
     async browTryOn({ fileId, ...opts }) {
-      const results = await client.runTask('makeup-vto', { src_file_id: fileId, version: '1.0', effects: browEffects(opts) });
-      return { image: await downloadAsDataUrl(results.url, fetchImpl) };
+      return tryOn('makeup-vto', { src_file_id: fileId, version: '1.0', effects: browEffects(opts) });
     },
 
     async hairTemplates() {
@@ -128,10 +149,12 @@ export function createLiveFeatures(client, { fetchImpl = fetch } = {}) {
       try {
         const res = await fetchImpl(EYEBROW_CATALOG_URL, { signal: AbortSignal.timeout(10_000) });
         const rows = await res.json();
-        const known = new Map(BROW_PATTERNS.map((p) => [p.label, p.name]));
-        browCache = rows
-          .filter((r) => r?.label)
-          .map((r) => ({ label: r.label, name: known.get(r.label) || r.category || r.label, thumb: r.thumbnail || null }));
+        // The catalog holds ~150 patterns under a few category names, which
+        // showed as rows of identical chips. Offer the curated shapes only, in
+        // their order, with the catalog's thumbnails.
+        const byLabel = new Map(rows.filter((r) => r?.label).map((r) => [r.label, r]));
+        browCache = BROW_PATTERNS.filter((p) => byLabel.has(p.label)).map((p) => ({ ...p, thumb: byLabel.get(p.label).thumbnail || null }));
+        if (!browCache.length) throw new Error('No curated brow patterns in the catalog');
       } catch {
         browCache = BROW_PATTERNS.map((p) => ({ ...p, thumb: null }));
       }

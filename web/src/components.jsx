@@ -317,7 +317,17 @@ export function ErrorBox({ error, onRetry }) {
   return (
     <div className="error-box" role="alert">
       <strong>
-        {error.fix === 'photo' ? 'Let’s retake that photo' : error.fix === 'ref' ? 'Try a different product photo' : error.fix === 'setup' ? 'The app needs setting up' : 'That didn’t work'}
+        {error.fix === 'photo'
+          ? 'Let’s retake that photo'
+          : error.fix === 'ref'
+            ? 'Try a different product photo'
+            : error.code === 'CreditInsufficiency'
+              ? 'Out of YouCam units'
+              : error.code === 'AccessCode'
+                ? 'Access code needed'
+                : error.fix === 'setup'
+                  ? 'The app needs setting up'
+                  : 'That didn’t work'}
       </strong>
       <p>{error.message}</p>
       {error.code === 'AccessCode' ? (
@@ -405,15 +415,22 @@ const FACE_CROP = (() => {
   return { x: 0.5 - w / 2, y: OVAL.cy - w / 2, w, h: w };
 })();
 const SD_MIN_SHORT = 480; // YouCam SD skin analysis: short side >= 480 px
+const HD_MIN_SHORT = 1080; // YouCam HD skin analysis: short side >= 1080 px
+const BOX_ASPECT = 3 / 4; // .capture's aspect-ratio
+const MIN_ZOOM = 0.5; // below 1 the photo shrinks inside the frame, for close-ups
 
 /**
  * FACE_CROP, widened (centred on the oval, up to the whole box) just enough
- * that the crop's short side reaches 480 px. A 720p webcam then gives a
- * 480x640 crop with the face at ~70% of its width instead of a useless 429 px.
+ * that the crop's short side reaches 1080 px for HD, or 480 px for SD when the
+ * photo can't give HD. A 1280x1900 upload then stays HD (1080x1440) and a
+ * 720p webcam gives 480x640 with the face at ~70% of its width, not 429 px.
  */
 export function faceCropFor(srcW, srcH, boxW, boxH, view = { zoom: 1 }) {
   const s = Math.max(boxW / srcW, boxH / srcH) * (view.zoom ?? 1);
-  const w = Math.min(1, Math.max(FACE_CROP.w, (SD_MIN_SHORT * s) / boxW));
+  const need = (short) => (short * s) / boxW;
+  // A hair over 1 is rounding: the whole box then holds just enough pixels.
+  const target = need(HD_MIN_SHORT) <= 1 + 1e-6 ? need(HD_MIN_SHORT) : need(SD_MIN_SHORT);
+  const w = Math.min(1, Math.max(FACE_CROP.w, target));
   if (w === FACE_CROP.w) return FACE_CROP;
   return { x: 0.5 - w / 2, y: Math.min(1 - w, Math.max(0, OVAL.cy - w / 2)), w, h: w };
 }
@@ -422,23 +439,33 @@ function cropRectFor(mode) {
   return mode === 'face' ? FACE_CROP : { x: 0, y: 0, w: 1, h: 1 };
 }
 
-/** Maps a fractional box rect onto source pixels for an object-fit: cover image/video with pan & zoom. */
+/**
+ * Maps a fractional box rect onto source pixels for a cover-sized image/video
+ * with pan & zoom. When zoomed out the rect can reach past the photo; cropToJpeg
+ * fills that part black, as the frame shows it.
+ */
 export function sourceRect(srcW, srcH, boxW, boxH, frac, view = { zoom: 1, tx: 0, ty: 0 }) {
   const s = Math.max(boxW / srcW, boxH / srcH) * view.zoom;
   const ox = (boxW - srcW * s) / 2 + view.tx;
   const oy = (boxH - srcH * s) / 2 + view.ty;
-  const x = Math.max(0, (frac.x * boxW - ox) / s);
-  const y = Math.max(0, (frac.y * boxH - oy) / s);
-  return { x, y, w: Math.min(srcW - x, (frac.w * boxW) / s), h: Math.min(srcH - y, (frac.h * boxH) / s) };
+  return { x: (frac.x * boxW - ox) / s, y: (frac.y * boxH - oy) / s, w: (frac.w * boxW) / s, h: (frac.h * boxH) / s };
 }
 
-// The upload <img> is box-sized (object-fit: cover) and then translated and
-// scaled about its centre. It still covers the frame while |tx| and |ty| stay
-// within (zoom - 1) / 2 of the box, so the saved crop is exactly what was shown.
-function clampView(v, b) {
-  if (!b) return v;
-  const mx = ((v.zoom - 1) * b.clientWidth) / 2;
-  const my = ((v.zoom - 1) * b.clientHeight) / 2;
+/** Size of the upload <img> as % of the frame: the whole photo at cover scale. */
+function coverSize(img) {
+  const a = img.naturalWidth / img.naturalHeight / BOX_ASPECT;
+  return a >= 1 ? { width: `${a * 100}%`, height: '100%' } : { width: '100%', height: `${100 / a}%` };
+}
+
+// The upload <img> is the whole photo at cover size, centred, then translated
+// and scaled about its centre. Each axis pans until the photo's edge meets the
+// frame's edge: a photo bigger than the frame keeps covering it, a smaller one
+// (zoomed out) stays inside it. So the saved crop is exactly what was shown.
+function clampView(v, b, img) {
+  if (!b || !img) return v;
+  const s = Math.max(b.clientWidth / img.naturalWidth, b.clientHeight / img.naturalHeight) * v.zoom;
+  const mx = Math.abs(img.naturalWidth * s - b.clientWidth) / 2;
+  const my = Math.abs(img.naturalHeight * s - b.clientHeight) / 2;
   return { ...v, tx: Math.max(-mx, Math.min(mx, v.tx)), ty: Math.max(-my, Math.min(my, v.ty)) };
 }
 
@@ -614,7 +641,7 @@ export function Capture({ mode = 'face', ghost, maxLong = 2560, onCapture, cta =
           if (state !== 'frame' || !d) return;
           const tx = d.tx + e.clientX - d.x;
           const ty = d.ty + e.clientY - d.y;
-          setView((v) => clampView({ ...v, tx, ty }, box.current));
+          setView((v) => clampView({ ...v, tx, ty }, box.current, upload));
         }}
         onPointerUp={() => (drag.current = null)}
         onPointerCancel={() => (drag.current = null)}
@@ -629,7 +656,7 @@ export function Capture({ mode = 'face', ghost, maxLong = 2560, onCapture, cta =
           />
         )}
         {state === 'frame' && upload && (
-          <img className="frame-img" src={upload.src} alt="Your photo" draggable="false" style={{ transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.zoom})`, objectFit: 'cover' }} />
+          <img className="frame-img" src={upload.src} alt="Your photo" draggable="false" style={{ ...coverSize(upload), transform: `translate(-50%, -50%) translate(${view.tx}px, ${view.ty}px) scale(${view.zoom})` }} />
         )}
         {ghost && showGhost && state !== 'choose' && <img className={`ghost${state === 'camera' ? ' mirror' : ''}`} src={ghost} alt="" style={ghostStyle} />}
         <Guide mode={mode} />
@@ -648,17 +675,17 @@ export function Capture({ mode = 'face', ghost, maxLong = 2560, onCapture, cta =
       {state === 'frame' && (
         <label className="field">
           <span>
-            {mode === 'face' ? 'Zoom so your face fills the oval, then drag to centre' : mode === 'portrait' ? 'Zoom so your head and shoulders fit the outline, then drag to centre' : 'Zoom and drag so the item fills the frame'}
+            {mode === 'face' ? 'Zoom in or out so your face fills the oval, then drag to centre' : mode === 'portrait' ? 'Zoom in or out so your head and shoulders fit the outline, then drag to centre' : 'Zoom and drag so the item fills the frame'}
           </span>
           <input
             type="range"
-            min="1"
+            min={MIN_ZOOM}
             max="3"
             step="0.01"
             value={view.zoom}
             onChange={(e) => {
               const zoom = Number(e.target.value);
-              setView((v) => clampView({ ...v, zoom }, box.current));
+              setView((v) => clampView({ ...v, zoom }, box.current, upload));
             }}
           />
         </label>

@@ -19,6 +19,21 @@ function canvasOf(w, h) {
 
 const toBlob = (canvas, quality = 0.92) => new Promise((r) => canvas.toBlob(r, 'image/jpeg', quality));
 
+// Draws rect of source onto a dw x dh canvas. A rect can reach past the photo
+// (a zoomed-out frame); only the part on the photo is drawn, the rest is left as it was.
+function drawRect(ctx, source, rect, dw, dh) {
+  const sw = source.videoWidth || source.naturalWidth || source.width;
+  const sh = source.videoHeight || source.naturalHeight || source.height;
+  const x0 = Math.max(0, rect.x);
+  const y0 = Math.max(0, rect.y);
+  const x1 = Math.min(sw, rect.x + rect.w);
+  const y1 = Math.min(sh, rect.y + rect.h);
+  if (x1 <= x0 || y1 <= y0) return;
+  const kx = dw / rect.w;
+  const ky = dh / rect.h;
+  ctx.drawImage(source, x0, y0, x1 - x0, y1 - y0, (x0 - rect.x) * kx, (y0 - rect.y) * ky, (x1 - x0) * kx, (y1 - y0) * ky);
+}
+
 export function blobToDataUrl(blob) {
   return new Promise((resolve, reject) => {
     const fr = new FileReader();
@@ -40,7 +55,10 @@ export async function cropToJpeg(source, rect, { maxLong = 2560, mirror = false,
     ctx.translate(c.width, 0);
     ctx.scale(-1, 1);
   }
-  ctx.drawImage(source, rect.x, rect.y, rect.w, rect.h, 0, 0, c.width, c.height);
+  // Matches the black frame behind a zoomed-out photo.
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, c.width, c.height);
+  drawRect(ctx, source, rect, c.width, c.height);
   const blob = await toBlob(c, quality);
   return { blob, width: c.width, height: c.height, dataUrl: await blobToDataUrl(blob) };
 }
@@ -54,7 +72,7 @@ export function faceBrightness(source, rect) {
   const h = Math.round((w * rect.h) / rect.w);
   const c = canvasOf(w, h);
   const ctx = c.getContext('2d', { willReadFrequently: true });
-  ctx.drawImage(source, rect.x, rect.y, rect.w, rect.h, 0, 0, w, h);
+  drawRect(ctx, source, rect, w, h);
   const { data } = ctx.getImageData(0, 0, w, h);
   let sum = 0;
   let n = 0;
@@ -62,8 +80,9 @@ export function faceBrightness(source, rect) {
     for (let x = 0; x < w; x++) {
       const dx = (x - w / 2) / (w * 0.36);
       const dy = (y - h * 0.46) / (h * 0.36);
-      if (dx * dx + dy * dy > 1) continue;
       const i = (y * w + x) * 4;
+      // Transparent pixels lie off the photo.
+      if (dx * dx + dy * dy > 1 || data[i + 3] === 0) continue;
       sum += (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) / 255;
       n++;
     }

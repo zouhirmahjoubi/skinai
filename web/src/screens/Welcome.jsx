@@ -120,7 +120,7 @@ export default function Welcome() {
       <ul className="list-plain stack" style={{ marginTop: 28 }}>
         <li>Ahead is a journal and a guide, not a diagnosis. Your care team always has the final word, and the safety signs on the Today screen mean call them now.</li>
         <li>Skin scores come from the YouCam AI Skin Analysis service. One photo can be off, so Ahead only flags changes larger than normal photo-to-photo variation.</li>
-        <li>Photos you analyse are uploaded to YouCam (Perfect Corp.). Ahead asks YouCam to delete each check-in photo and its results as soon as they arrive; try-on photos are deleted by YouCam automatically within its retention period (up to 30 days). Ahead’s server doesn’t store photos.</li>
+        <li>Photos you analyse are uploaded to YouCam (Perfect Corp.). Ahead asks YouCam to delete each photo and its results as soon as they arrive. Anything left over expires within YouCam’s retention period (up to 30 days). Ahead’s server doesn’t store photos.</li>
       </ul>
       <label className="choice">
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
