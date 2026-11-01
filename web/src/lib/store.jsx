@@ -3,7 +3,11 @@ import { db } from './db.js';
 import { api } from './api.js';
 import { compareCheckin } from '../../../core/trends.js';
 import { watchNotes } from '../../../core/insights.js';
+import { clearAskSession } from './askSession.js';
 import { sampleJourney } from '../../../core/sample.js';
+
+/** Everything else a journal download carries, beyond the main records. */
+export const JOURNAL_EXTRAS = ['portrait', 'browPhoto', 'hairChecks', 'prefs', 'lookFeedback'];
 
 const Ctx = createContext(null);
 const byDate = (a, b) => (a.date === b.date ? (a.createdAt || '').localeCompare(b.createdAt || '') : a.date < b.date ? -1 : 1);
@@ -90,6 +94,7 @@ export function StoreProvider({ children }) {
 
   const resetAll = useCallback(async () => {
     await db.clearAll();
+    clearAskSession();
     setProfile(null);
     setCheckins([]);
     setPrint(null);
@@ -105,11 +110,15 @@ export function StoreProvider({ children }) {
     await db.set('profile', s.profile);
     await db.set('print', s.print);
     await db.set('list', demoList);
+    await db.set('portrait', s.portrait);
+    await db.set('hairChecks', s.hairChecks);
     for (const c of s.checkins) await db.put('checkins', c);
+    for (const l of s.looks) await db.put('looks', l);
+    clearAskSession();
     setProfile(s.profile);
     setPrint(s.print);
     setCheckins([...s.checkins].sort(byDate));
-    setLooks([]);
+    setLooks(s.looks);
     setList(demoList);
   }, []);
 
@@ -132,6 +141,8 @@ export function StoreProvider({ children }) {
     if (!valid) throw new Error('Not a Still Me journal file');
     const list = data.list || [];
     await db.replaceJournal({ profile: data.profile, print: data.print || null, list, checkins: data.checkins, looks });
+    for (const key of JOURNAL_EXTRAS) if (data[key] !== undefined) await db.set(key, data[key]);
+    clearAskSession();
     setProfile(data.profile);
     setPrint(data.print || null);
     setCheckins([...data.checkins].sort(byDate));
@@ -176,7 +187,6 @@ export function useRoute() {
   useEffect(() => {
     const on = () => {
       setRoute(read());
-      window.scrollTo(0, 0);
     };
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);

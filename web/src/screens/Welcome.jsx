@@ -1,9 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useStore, go } from '../lib/store.jsx';
-import { enterScreen } from '../lib/motion.js';
-import Landing from './Landing.jsx';
+import { enterScreen } from '../lib/enter.js';
 import { TREATMENTS, TREATMENT_KEYS } from '../../../core/treatments.js';
 import { today } from '../lib/db.js';
+
+// The welcome page brings GSAP and three.js with it, so it loads on its own.
+const Landing = lazy(() => import('./Landing.jsx'));
 
 const isIOS = typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
 const standalone = typeof window !== 'undefined' && (window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true);
@@ -49,12 +51,14 @@ export default function Welcome() {
 
   if (step === 0) {
     return (
+      <Suspense fallback={null}>
       <Landing
         onStart={() => setStep(1)}
         onSample={sample}
         demo={server.mode === 'demo'}
         iosNote={isIOS && !standalone && <p className="small">On iPhone, Safari can clear websites you haven’t opened for a week. Add Still Me to your Home Screen first (Share, then Add to Home Screen) and set it up from there.</p>}
       />
+      </Suspense>
     );
   }
 

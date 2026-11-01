@@ -4,7 +4,7 @@ import { TopBar, NoteCard, ScoreRow, RedFlags } from '../components.jsx';
 import { CONCERN_BY_KEY } from '../../../core/concerns.js';
 import { treatmentPhase } from '../../../core/treatments.js';
 
-const fmt = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+const fmt = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 
 export default function Result({ param }) {
   const { profile, deleteCheckin, server } = useStore();
@@ -39,7 +39,7 @@ export default function Result({ param }) {
         <p className="muted">{phase.phase === 'before' ? 'Before treatment' : `Week ${phase.week}`}, {current.tier === 'hd' ? 'HD' : 'standard'} analysis</p>
         <h1>{fmt(current.date)}</h1>
         {current.sample && <div className="banner info">Sample journey: these scores are illustrative, not a real person’s.</div>}
-        {current.demo && <div className="banner">Demo result: this server has no YouCam API key, so scores are simulated.</div>}
+        {current.demo && <div className="banner">Simulated result, for trying the app.</div>}
       </div>
 
       <section aria-labelledby="notes">
@@ -78,8 +78,8 @@ export default function Result({ param }) {
           ))}
         </div>
         <p className="fine" style={{ marginTop: 10 }}>
-          These are YouCam’s raw model scores, which show change more faithfully than its rounded-up display scores. Changes smaller than 6 points are within normal photo-to-photo variation and show as steady.
-          {comparison.baseline ? ` Compared with your baseline from ${new Date(`${comparison.baseline.date}T12:00:00`).toLocaleDateString()}.` : ''}
+          Scores come from YouCam AI Skin Analysis. Changes smaller than 6 points are within normal photo-to-photo variation and show as steady.
+          {comparison.baseline ? ` Compared with your baseline from ${new Date(`${comparison.baseline.date}T12:00:00`).toLocaleDateString('en-GB')}.` : ''}
         </p>
         {current.deletedFromYouCam && <p className="fine">YouCam was asked to delete this photo and its results after analysis; your copy stays on this device.</p>}
       </section>

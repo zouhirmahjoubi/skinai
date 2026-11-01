@@ -1,45 +1,21 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Icon, Logo, PaletteSwitcher, Sparkline } from '../components.jsx';
-import { landingStory, reducedMotion } from '../lib/motion.js';
-import { sampleJourney } from '../../../core/sample.js';
+import { useLayoutEffect, useRef } from 'react';
+import { Logo } from '../components.jsx';
+import { gather, landingStory } from '../lib/motion.js';
+import { reducedMotion } from '../lib/reduced.js';
 
-// The first screen: a short scroll story (hero, how it works, our promise)
-// before setup. Everything decorative is aria-hidden; the text reads in order.
+// The first screen: the promise and the button at once, then the real app,
+// chapter by chapter. Everything decorative is aria-hidden; the text reads in order.
 
-// Reticle positions on the portrait (cheek, brow, hair); on phones the tags sit under their reticles.
-const PINS = [
-  { x: '40%', y: '56%', side: 'left', name: 'Calm skin', note: 'steady' },
-  { x: '60%', y: '41%', side: 'right', name: 'Brow shape', note: 'saved' },
-  { x: '47%', y: '27%', side: 'left minor', name: 'Hair colour', note: 'on record' },
+const CHAPTERS = [
+  { id: 'print', title: 'Keep your own look on record', body: 'One selfie saves your hair colour, brow shape and face shape before anything changes. Your wig specialist can work from it later.', alt: 'Hair and brow print with measured colours and face shape' },
+  { id: 'looks', title: 'See it on your own face', body: 'Try wigs in your own colour, your brows drawn back on, and how your hair might grow back. Many shops won’t take a wig back once it’s been worn.', alt: 'A saved lookbook of wigs, brows and earrings on one person' },
+  { id: 'check', title: 'Know which changes matter', body: 'A weekly selfie is read against your treatment and your week. On an EGFR inhibitor, a falling clear-skin score means tell your care team, not buy acne cream.', alt: 'A check-in note saying this looks like an acne-like rash, tell your care team' },
+  { id: 'shelf', title: 'Check what’s safe to use', body: 'Every ingredient list is checked against your treatment and your latest check-in. If something you saved stops being right for you, it tells you.', alt: 'A warning that a saved acne gel is no longer right, above the shelf' },
+  { id: 'ask', title: 'Ask, then try what it plans', body: 'Ask about your skin, a product, or a look for a wedding. Answers come from Still Me’s rules, and nothing runs until you tap.', alt: 'The companion planning a look for a wedding from the person’s own print' },
+  { id: 'report', title: 'Walk in prepared', body: 'Your scores, notes and questions go on a summary for your care team, with a fitting sheet for your wig specialist.', alt: 'A care-team summary with a dated score table and questions' },
 ];
 
-const STEPS = [
-  { n: '01', title: 'Print', body: 'One selfie keeps your hair colour, brow shape and face shape on record.' },
-  { n: '02', title: 'Try on', body: 'Wigs, hats and brows on your own face, from any shop.' },
-  { n: '03', title: 'Check in', body: 'A weekly selfie shows which skin changes are real.' },
-];
-
-// The Print card shows the sample journey's measured hair, brow and skin colours.
-const PRINT = sampleJourney().print.colors;
-const PRINT_DOTS = [
-  { name: 'Hair', hex: PRINT.hair_color },
-  { name: 'Brows', hex: PRINT.eyebrow_color },
-  { name: 'Skin', hex: PRINT.skin_color },
-];
-
-// The promise, as words; '*' marks an accent word, '•' an image pill.
-const PROMISE = 'Still Me helps you • see what treatment changes before it happens, keep your own look • on record, and know when to call your care team. Made for your *calmest,* most *prepared* days.';
-const TAGS = ['Prepared', 'Calm', 'Informed', 'Confident', 'Seen'];
-
-/** A line of words, each in its own mask so they can rise in turn. */
-function Words({ text }) {
-  return text.split(' ').flatMap((w, i) => [
-    <span key={i} className="hero-word">
-      <span>{w}</span>
-    </span>,
-    ' ',
-  ]);
-}
+const screen = (id) => `/story/${id}.webp`;
 
 function Arrow() {
   return (
@@ -58,45 +34,59 @@ function Lock() {
 }
 
 /**
- * The welcome portrait: an AI-generated woman (KIE, Nano Banana 2; not a real person),
- * still and crisp. A soft band of light sweeps down her face like a skin check, and the
- * rings on her cheek, brow and hair pulse in turn (styles.css; off with reduced motion).
+ * The portrait (an AI-generated woman, not a real person). It gathers from points
+ * with three.js, then the crisp photo takes over and the scene is thrown away.
+ * If three.js is slow or missing, or motion is reduced, the photo simply shows.
  */
-function Portrait() {
-  return (
-    <div className="portrait">
-      <img src="/portrait/portrait.webp" alt="" decoding="async" fetchpriority="high" />
-      <span className="scan-band" />
-    </div>
-  );
-}
-
-/** The three.js orb, loaded after first paint. A CSS orb shows until then, or for good without WebGL. */
-function Orb({ orbRef }) {
+function HeroPortrait() {
+  const figure = useRef(null);
   const canvas = useRef(null);
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    let orb = null;
-    let cancelled = false;
-    import('../lib/orb.js')
-      .then(({ startOrb }) => {
-        if (cancelled || !canvas.current) return;
-        orb = startOrb(canvas.current, { still: reducedMotion() });
-        orbRef.current = orb;
-        if (orb) setReady(true);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-      orb?.stop();
-      orbRef.current = null;
+  const img = useRef(null);
+  useLayoutEffect(() => {
+    const save = navigator.connection?.saveData || (navigator.deviceMemory && navigator.deviceMemory <= 2);
+    if (reducedMotion() || save) return undefined;
+    const el = figure.current;
+    let scene = null;
+    let cancelGather = null;
+    let finished = false;
+    el.classList.add('forming');
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(slow);
+      el.classList.remove('forming');
+      // The crossfade takes 0.5 s; the scene goes once the photo has taken over.
+      if (scene) setTimeout(() => scene?.stop(), 600);
     };
-  }, [orbRef]);
+    const slow = setTimeout(finish, 2600);
+    import('../lib/portrait3d.js')
+      .then(({ startPortrait }) => startPortrait(canvas.current, img.current.currentSrc || img.current.src))
+      .then((s) => {
+        if (finished) {
+          s?.stop();
+          return;
+        }
+        if (!s) {
+          finish();
+          return;
+        }
+        clearTimeout(slow);
+        scene = s;
+        cancelGather = gather(s.render, finish);
+      })
+      .catch(finish);
+    return () => {
+      finished = true;
+      clearTimeout(slow);
+      cancelGather?.();
+      scene?.stop();
+    };
+  }, []);
   return (
-    <div className={`orb-wrap${ready ? ' ready' : ''}`}>
-      <div className="orb-fallback" />
+    <figure className="hero-figure" ref={figure} aria-hidden="true">
+      <img ref={img} src="/portrait/portrait.webp" alt="" fetchpriority="high" width="928" height="1152" />
       <canvas ref={canvas} />
-    </div>
+    </figure>
   );
 }
 
@@ -106,12 +96,19 @@ function Orb({ orbRef }) {
  */
 export default function Landing({ onStart, onSample, demo, iosNote, returning = false }) {
   const root = useRef(null);
-  const orbRef = useRef(null);
-  useLayoutEffect(() => landingStory(root.current, () => orbRef.current), []);
+  useLayoutEffect(() => landingStory(root.current), []);
   const startLabel = returning ? 'Open my journal' : 'Set up Still Me';
   const sampleButton = !returning && (
     <button className="btn secondary" onClick={onSample}>
-      Explore a sample journey first
+      See a sample journey
+    </button>
+  );
+  const mainButton = (
+    <button className="btn primary cta" onClick={onStart}>
+      {startLabel}
+      <span className="cta-arrow">
+        <Arrow />
+      </span>
     </button>
   );
 
@@ -122,216 +119,85 @@ export default function Landing({ onStart, onSample, demo, iosNote, returning = 
           <Logo />
           Still Me
         </div>
-        <button type="button" className="linkish" onClick={returning ? onStart : onSample}>
-          {returning ? 'Open my journal' : 'See a sample'}
-        </button>
       </header>
 
       <section className="hero" aria-labelledby="hero-title">
-        <div className="hero-head">
-          <p className="eyebrow pill" data-rise>Made for cancer treatment</p>
+        <div className="hero-copy">
           <h1 id="hero-title" className="hero-title">
-            <span className="sr-only">Your skin, hair and brows, through treatment. Still you.</span>
-            <span aria-hidden="true">
-              <span className="hero-line">
-                <Words text="Your skin, hair" />
-              </span>
-              <span className="hero-line">
-                <Words text="and brows, through" />
-              </span>
-              <span className="hero-line accent">
-                <Words text="treatment. Still" />
+            <span className="hero-word">
+              <span>Still</span>
+            </span>{' '}
+            <span className="hero-word">
+              <span>
+                <em>you.</em>
               </span>
             </span>
           </h1>
-        </div>
-
-        <div className="hero-visual" aria-hidden="true">
-          <Portrait />
-          {PINS.map((p, i) => (
-            <span key={p.name} className={`pin ${p.side}`} style={{ '--x': p.x, '--y': p.y, '--xw': p.xw || p.x, '--yw': p.yw || p.y, '--pulse': `${i * 0.9}s` }}>
-              <span className="ret" />
-              <span className="tag">
-                {p.name} <span className="tag-note">{p.note}</span>
-              </span>
-            </span>
-          ))}
-          <div className="scan-card">
-            <div className="scan-head">
-              <span>Sample check-in</span>
-              <span className="scan-done">Week 3</span>
-            </div>
-            <div className="scan-bar">
-              <span />
-            </div>
-            <dl>
-              <div>
-                <dt>skin signals read</dt>
-                <dd data-count="8">8</dd>
-              </div>
-              <div>
-                <dt>real changes</dt>
-                <dd data-count="1">1</dd>
-              </div>
-              <div>
-                <dt>brow print</dt>
-                <dd>Saved</dd>
-              </div>
-            </dl>
-          </div>
-        </div>
-
-        <p className="hero-big" aria-hidden="true">
-          <Words text="you." />
-        </p>
-
-        <p className="hero-body muted" data-rise>
-          Try wigs, brows and earrings on yourself before your hair changes. Each week, a selfie shows which skin changes are real, when to call your care team, and which products are safe right now. And you can ask Still Me anything along the way.
-        </p>
-
-        <div className="hero-cta" data-rise>
-          <div className="cta-row">
-            <button className="btn primary cta" onClick={onStart}>
-              {startLabel}
-              <span className="cta-arrow">
-                <Arrow />
-              </span>
-            </button>
+          <p className="hero-sub" data-rise>
+            Your skin, hair and brows, through cancer treatment.
+          </p>
+          <div className="cta-row" data-rise>
+            {mainButton}
             {sampleButton}
           </div>
-          <p className="trust">
-            <Lock /> Your photos and history stay on this device.
+          <p className="trust" data-rise>
+            <Lock /> Your journal stays on this device.
           </p>
-          <PaletteSwitcher />
           {iosNote}
-          {demo && <p className="fine">This server has no YouCam key, so analysis shows demo results.</p>}
+          {demo && <p className="fine">Results here are simulated.</p>}
         </div>
+        <HeroPortrait />
       </section>
 
-      <section className="method" aria-labelledby="method-title">
-        <div className="method-text">
-          <p className="eyebrow">How Still Me works</p>
-          <h2 id="method-title" className="display">
-            Care that <em>keeps pace</em>
+      <section className="story" aria-labelledby="story-title">
+        <div className="story-head">
+          <h2 id="story-title" className="display">
+            From the first selfie to <em>your next appointment</em>
           </h2>
-          <p className="muted">Still Me records how you look before treatment, reads the changes week by week, and tells you which ones matter.</p>
-          <div className="steps-wrap">
-            <span className="rail" aria-hidden="true">
-              <span className="rail-fill" />
-            </span>
-            <ol className="rail-steps">
-              {STEPS.map((s) => (
-                <li key={s.n} className="rail-step">
-                  <span className="rail-dot" aria-hidden="true" />
-                  <h3>
-                    <span className="rail-n">{s.n}</span> {s.title}
-                  </h3>
-                  <p>{s.body}</p>
-                </li>
-              ))}
-              <li className="rail-step final">
-                <span className="rail-dot" aria-hidden="true" />
-                <h3 className="display">
-                  Ready for your <em>care team</em>
-                </h3>
-                <p>Scores, notes and questions on one page for your next appointment.</p>
+        </div>
+        <div className="story-body">
+          <span className="story-rail" aria-hidden="true">
+            <span className="story-rail-fill" />
+          </span>
+          <ol className="chapters">
+            {CHAPTERS.map((c) => (
+              <li key={c.id} className="chapter">
+                <div className="chapter-text">
+                  <h3>{c.title}</h3>
+                  <p>{c.body}</p>
+                </div>
+                <figure className="chapter-shot phone">
+                  <img src={screen(c.id)} alt={c.alt} loading="lazy" width="390" height="844" />
+                </figure>
               </li>
-            </ol>
-          </div>
-        </div>
-        <div className="method-visual" aria-hidden="true">
-          <div className="arch">
-            <div className="arch-fill" />
-            <Orb orbRef={orbRef} />
-            {/* One small card per step, lit as its step crosses the screen (motion.js). */}
-            <div className="arch-card" style={{ '--x': '8%', '--y': '23%' }}>
-              <span className="card-kicker">Your print</span>
-              <span className="card-dots">
-                {PRINT_DOTS.map((dot) => (
-                  <span key={dot.name}>
-                    <span style={{ background: dot.hex }} />
-                    {dot.name}
-                  </span>
-                ))}
-              </span>
-            </div>
-            <div className="arch-card" style={{ '--x': '42%', '--y': '40%' }}>
-              <span className="card-kicker">Try on</span>
-              <span className="card-row">
-                <span className="card-thumb">
-                  <Icon name="look" />
-                </span>
-                <span>
-                  <strong>Sleek bob</strong>
-                  <small>Tried on at home</small>
-                </span>
-              </span>
-            </div>
-            <div className="arch-card" style={{ '--x': '6%', '--y': '57%' }}>
-              <span className="card-kicker">Check-in, week 3</span>
-              <span className="card-row">
-                <span>
-                  <strong>Calm skin 72</strong>
-                  <small>Steady</small>
-                </span>
-                <Sparkline values={[66, 68, 67, 70, 72]} />
-              </span>
-            </div>
-            <div className="arch-card" style={{ '--x': '42%', '--y': '75%' }}>
-              <span className="card-kicker">Care-team summary</span>
-              <strong className="card-title">3 questions ready</strong>
-              <span className="card-lines">
-                <span />
-                <span />
-                <span />
-              </span>
+            ))}
+          </ol>
+          <div className="story-stage" aria-hidden="true">
+            <div className="phone">
+              {CHAPTERS.map((c) => (
+                <img key={c.id} className="phone-screen" src={screen(c.id)} alt="" loading="lazy" width="390" height="844" />
+              ))}
             </div>
           </div>
-        </div>
-      </section>
-
-      <section className="promise" aria-labelledby="promise-title">
-        <p className="eyebrow" id="promise-title">
-          Our promise
-        </p>
-        <p className="statement">
-          {PROMISE.split(' ').flatMap((w, i) => {
-            if (w === '•') return [<span key={i} className="ipill" aria-hidden="true" />, ' '];
-            const accent = w.startsWith('*');
-            const word = w.replace(/\*/g, '');
-            return [accent ? <em key={i} className="sw">{word}</em> : <span key={i} className="sw">{word}</span>, ' '];
-          })}
-        </p>
-        <div className="ftags" aria-hidden="true">
-          {TAGS.map((t, i) => (
-            <span key={t} className="ftag" style={{ '--d': `${i * -2.3}s` }}>
-              {t}
-            </span>
-          ))}
         </div>
       </section>
 
       <section className="final" aria-labelledby="final-title">
         <h2 id="final-title" className="display">
-          Ready when <em>you are.</em>
+          Start with <em>one selfie.</em>
         </h2>
         <div className="cta-row">
-          <button className="btn primary cta" onClick={onStart}>
-            {startLabel}
-            <span className="cta-arrow">
-              <Arrow />
-            </span>
-          </button>
+          {mainButton}
           {sampleButton}
         </div>
         <div className="sheet tint stack">
           <h3>Private by design</h3>
-          <p>Your photos and history stay on this device, not on our server. Photos go to the YouCam analysis service only when you ask for a check-in or try-on.</p>
+          <p>Your photos and history stay on this device, not on our server. Photos go to the YouCam analysis service only when you ask for a check-in or try-on. If you use Ask, your question and a short summary of your journal go to an AI model, never your photos.</p>
         </div>
       </section>
 
       <footer className="land-foot">
-        <span>Still Me · built on the YouCam API</span>
+        <span>Still Me, built on the YouCam API. The woman shown is AI-generated.</span>
         <span>A journal and a guide, not a diagnosis. Your care team has the final word.</span>
       </footer>
     </div>

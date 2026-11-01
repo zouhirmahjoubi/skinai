@@ -31,9 +31,18 @@ export function createLiveFeatures(client, { fetchImpl = fetch, mcp = null } = {
     if (!mcp) throw new YouCamError('This preview needs the YouCam MCP connection.', 'McpUnavailable', 503);
     return mcp;
   };
+  // A failed MCP task still holds the photo on YouCam: delete it, then report.
+  async function mcpRun(server, tool, request) {
+    try {
+      return await needMcp().runTool(server, tool, request);
+    } catch (err) {
+      await forget(err.taskId);
+      throw err;
+    }
+  }
   // An MCP-run try-on: download the image, then delete the task, like tryOn().
   async function mcpImage(server, tool, request) {
-    const run = await needMcp().runTool(server, tool, request);
+    const run = await mcpRun(server, tool, request);
     const image = await downloadAsDataUrl(run.results.url, fetchImpl).catch(async (err) => {
       await forget(run.taskId);
       throw err;
@@ -160,10 +169,15 @@ export function createLiveFeatures(client, { fetchImpl = fetch, mcp = null } = {
     async regrowth({ fileId, templateId, hex }) {
       const curls = await mcpImage('beauty', 'AI-Wavy-Hair-Virtual-Try-On', { src_file_id: fileId, template_id: templateId });
       if (!hex) return curls;
-      const buf = Buffer.from(curls.image.split(',')[1], 'base64');
-      const type = curls.image.slice(5, curls.image.indexOf(';'));
-      const curledId = await client.uploadImage(buf, { contentType: type, fileName: `regrowth.${type === 'image/png' ? 'png' : 'jpg'}` });
-      return mcpImage('beauty', 'AI-Hair-Color-Virtual-Try-On', { src_file_id: curledId, pattern: { name: 'full' }, palettes: [{ color: hex, color_intensity: 90 }] });
+      try {
+        const buf = Buffer.from(curls.image.split(',')[1], 'base64');
+        const type = curls.image.slice(5, curls.image.indexOf(';'));
+        const curledId = await client.uploadImage(buf, { contentType: type, fileName: `regrowth.${type === 'image/png' ? 'png' : 'jpg'}` });
+        return await mcpImage('beauty', 'AI-Hair-Color-Virtual-Try-On', { src_file_id: curledId, pattern: { name: 'full' }, palettes: [{ color: hex, color_intensity: 90 }] });
+      } catch (err) {
+        err.billed = true; // the curls step was charged whatever happens to this one
+        throw err;
+      }
     },
 
     async curlTemplates() {
@@ -188,7 +202,7 @@ export function createLiveFeatures(client, { fetchImpl = fetch, mcp = null } = {
 
     // Scalp visibility at the crown and parting, from a photo with the head lowered ~45°.
     async hairDensity({ fileId }) {
-      const run = await needMcp().runTool('beauty', 'AI-Hair-Density-Detection', { src_file_id: fileId });
+      const run = await mcpRun('beauty', 'AI-Hair-Density-Detection', { src_file_id: fileId });
       const d = run.results.hair_density || {};
       const score = Number(d.mapping);
       return { score: Number.isFinite(score) ? Math.round(score * 100) / 100 : null, term: d.term || null, deleted: await forget(run.taskId) };

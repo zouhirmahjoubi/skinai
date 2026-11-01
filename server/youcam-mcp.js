@@ -28,22 +28,70 @@ function errorOf(text) {
   return new YouCamError(text.replace(/^YcoApiException - /, '').slice(0, 300), code, 422);
 }
 
+const withTask = (err, taskId) => {
+  if (taskId) err.taskId = taskId;
+  return err;
+};
+
+// Reads the answer as it arrives: a task's progress notifications carry its id
+// in params.data.extra.task_id, and a timeout must not lose the ones already sent.
+async function readBody(res, seen) {
+  if (!res.body) return '';
+  const decoder = new TextDecoder();
+  let text = '';
+  let pending = '';
+  for await (const chunk of res.body) {
+    const part = decoder.decode(chunk, { stream: true });
+    text += part;
+    const lines = (pending + part).split(/\r?\n/);
+    pending = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data:')) continue;
+      try {
+        seen.taskId = JSON.parse(line.slice(5)).params?.data?.extra?.task_id || seen.taskId;
+      } catch {
+        /* not one whole message: messagesOf decides what that means */
+      }
+    }
+  }
+  return text;
+}
+
 export function createYouCamMcp({ apiKey, baseUrl = BASE_URL, fetchImpl = fetch, timeoutMs = 120_000 } = {}) {
   if (!apiKey) throw new Error('createYouCamMcp needs an apiKey');
   const sessions = new Map(); // server -> Promise<session id | null>
   let nextId = 1;
 
-  async function post(server, body, session) {
+  async function post(server, body, session, seen = {}) {
     const headers = { 'content-type': 'application/json', accept: 'application/json, text/event-stream', authorization: `Bearer ${apiKey}` };
     if (session) headers['mcp-session-id'] = session;
-    const res = await fetchImpl(`${baseUrl}/${server}`, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs) });
-    const text = await res.text();
+    // A task that was running when the line dropped may still be charged.
+    const running = body.method === 'tools/call';
+    let res;
+    let text;
+    try {
+      res = await fetchImpl(`${baseUrl}/${server}`, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs) });
+      text = await readBody(res, seen);
+    } catch (cause) {
+      const err = new YouCamError(`YouCam MCP ${server} could not be reached: ${cause.message}`, 'McpUnavailable', 502);
+      if (running) err.billed = true;
+      throw err;
+    }
     if (!res.ok) {
       const err = new YouCamError(`YouCam MCP ${server} answered ${res.status}`, res.status === 401 ? 'InvalidApiKey' : 'McpUnavailable', res.status === 401 ? 401 : 502);
       err.httpStatus = res.status;
+      if (running && res.status >= 500) err.billed = true;
       throw err;
     }
-    return { session: res.headers.get('mcp-session-id'), messages: messagesOf(text, res.headers.get('content-type') || '') };
+    let messages;
+    try {
+      messages = messagesOf(text, res.headers.get('content-type') || '');
+    } catch {
+      const err = new YouCamError(`YouCam MCP ${server} sent an unreadable answer`, 'McpUnavailable', 502);
+      if (running) err.billed = true;
+      throw err;
+    }
+    return { session: res.headers.get('mcp-session-id'), messages };
   }
 
   function sessionFor(server) {
@@ -62,25 +110,29 @@ export function createYouCamMcp({ apiKey, baseUrl = BASE_URL, fetchImpl = fetch,
   async function rpc(server, method, params, retried = false) {
     const session = await sessionFor(server);
     const id = nextId++;
+    const seen = {};
     try {
-      const { messages } = await post(server, { jsonrpc: '2.0', id, method, params }, session);
+      const { messages } = await post(server, { jsonrpc: '2.0', id, method, params }, session, seen);
       const reply = messages.find((m) => m.id === id);
-      if (!reply) throw new YouCamError('YouCam MCP sent no answer', 'McpUnavailable', 502);
+      if (!reply) {
+        const err = new YouCamError('YouCam MCP sent no answer', 'McpUnavailable', 502);
+        if (method === 'tools/call') err.billed = true;
+        throw err;
+      }
       if (reply.error) throw new YouCamError(reply.error.message || 'YouCam MCP error', 'McpError', 502);
-      return reply.result;
+      return { result: reply.result, taskId: seen.taskId || null };
     } catch (err) {
       // An expired session answers 400/404: start a new one, once.
       if (!retried && (err.httpStatus === 400 || err.httpStatus === 404)) {
         sessions.delete(server);
         return rpc(server, method, params, true);
       }
-      throw err;
+      throw withTask(err, seen.taskId);
     }
   }
 
-  /** Calls a tool and returns its parsed JSON payload, or throws the task's error code. */
-  async function callTool(server, name, args) {
-    const result = await rpc(server, 'tools/call', { name, arguments: args });
+  async function invoke(server, name, args) {
+    const { result, taskId } = await rpc(server, 'tools/call', { name, arguments: args });
     const text = (result?.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('');
     let payload = result?.structuredContent?.result ?? null;
     if (!payload) {
@@ -90,16 +142,22 @@ export function createYouCamMcp({ apiKey, baseUrl = BASE_URL, fetchImpl = fetch,
         payload = null;
       }
     }
-    if (result?.isError || payload?.error_message || !payload) throw errorOf(payload?.error_message || text || 'TaskFailed');
-    return payload;
+    if (result?.isError || payload?.error_message || !payload) throw withTask(errorOf(payload?.error_message || text || 'TaskFailed'), taskId);
+    return { payload, taskId };
+  }
+
+  /** Calls a tool and returns its parsed JSON payload, or throws the task's error code (with err.taskId when known). */
+  async function callTool(server, name, args) {
+    return (await invoke(server, name, args)).payload;
   }
 
   /** Runs a YouCam task through MCP: { taskId, results }. */
   async function runTool(server, name, request) {
-    const payload = await callTool(server, name, { request });
+    const { payload, taskId: streamed } = await invoke(server, name, { request });
     const data = payload.data || payload;
-    if (data.task_status && data.task_status !== 'success') throw errorOf(String(data.error || data.task_status));
-    return { taskId: data.task_id || null, results: data.results || {} };
+    const taskId = data.task_id || streamed;
+    if (data.task_status && data.task_status !== 'success') throw withTask(errorOf(String(data.error || data.task_status)), taskId);
+    return { taskId, results: data.results || {} };
   }
 
   // Live unit prices, read from YouCam rather than hard-coded: path -> units.

@@ -10,8 +10,8 @@ Built for people starting chemotherapy, radiation or targeted therapy. Still Me 
 
 ## For the judges, in one minute
 
-- **Technological implementation:** 10 YouCam AI features, 6 over REST and 4 through YouCam's hosted MCP servers (beauty and fashion), plus live unit prices read through MCP. A companion agent calls Still Me's own rule engines as tools and proposes try-ons that run only after a tap. Every YouCam task is deleted once its result is downloaded. 72 automated tests, a live smoke test, a public repo.
-- **Design:** one journey for one person, from a print of their own hair and brows before treatment, through weekly skin and hair checks, to try-ons and printable pages for the wig fitter, the insurer and the care team. Mobile first.
+- **Technological implementation:** 10 YouCam AI features, 6 over REST and 4 through YouCam's hosted MCP servers (beauty and fashion), plus live unit prices read through MCP. A companion agent calls Still Me's own rule engines as tools and proposes try-ons that run only after a tap. Every YouCam task is deleted once its result is downloaded. 163 automated tests, a live smoke test, a public repo.
+- **Design:** one journey for one person, from a print of their own hair and brows before treatment, through weekly skin and hair checks, to try-ons and printable pages for the wig fitter, the insurer and the care team. Mobile first, with motion built for people who may feel unwell: warnings never move, nothing bounces or loops, and there is a Less motion switch.
 - **Potential impact:** the moment a generic skin app gets wrong. On an EGFR inhibitor, an acne-like rash is a common side effect, and over-the-counter acne products can make it worse. Still Me reads the same score drop as "tell your care team", and moves those products to *Not right now*.
 - **Quality of idea:** YouCam's try-ons used to keep a person recognisable to themselves: their own brows drawn back on, a wig in their own colour, earrings to frame the face, and a preview of how hair often grows back after chemotherapy.
 
@@ -37,11 +37,11 @@ Skin, hair and brow changes are among the most visible side effects of cancer tr
 
 ## How we built it
 
-A React (Vite) mobile web app with an on-device journal (IndexedDB), and a Node/Express server that holds the YouCam key and talks to YouCam two ways:
+A React (Vite) mobile web app with an on-device journal (IndexedDB), animated with three.js (the portrait gathering from points), GSAP and ScrollTrigger (the welcome story) and Motion (the app), and a Node/Express server that holds the YouCam key and talks to YouCam two ways:
 - over REST: the File API, the async task, poll and delete flow, and the template APIs;
 - over MCP: a small streamable-HTTP client for YouCam's beauty and fashion MCP servers, which runs Hair Color, Wavy Hair, Hair Density and Earrings by file id and reads live prices with Get-Feature-Cost.
 
-The companion agent runs on Claude through KIE's Anthropic-compatible API, with an automatic fallback to GPT-6 Luna. Its 10 tools wrap Still Me's framework-free rule modules, which the browser and the tests share:
+The companion agent runs on Claude through KIE's Anthropic-compatible API, with an automatic fallback to GPT-6 Luna, and to Still Me's rules alone if both fail. Its 10 tools wrap Still Me's framework-free rule modules, which the browser and the tests share:
 - a noise-aware trend model;
 - a treatment knowledge base;
 - a watch-note rule engine;
@@ -67,7 +67,7 @@ Clinician-reviewed content per drug, live Shopify or CSV catalog import, multili
 
 ## Built with
 
-YouCam API (AI Skin Analysis, Facial Color Tones Analyzer, Face Attributes & Ratio Analyzer, Hairstyle Virtual Try-On, Hat Virtual Try-On, Makeup Virtual Try-On) and YouCam MCP servers (Hair Color, Wavy Hair, Hair Density Detection, Earrings Virtual Try-On, Get-Feature-Cost), Claude and GPT through KIE, React, Vite, Node.js, Express, IndexedDB.
+YouCam API (AI Skin Analysis, Facial Color Tones Analyzer, Face Attributes & Ratio Analyzer, Hairstyle Virtual Try-On, Hat Virtual Try-On, Makeup Virtual Try-On) and YouCam MCP servers (Hair Color, Wavy Hair, Hair Density Detection, Earrings Virtual Try-On, Get-Feature-Cost), Claude and GPT through KIE, React, Vite, three.js, GSAP, Motion, Node.js, Express, IndexedDB.
 
 ## Testing instructions
 

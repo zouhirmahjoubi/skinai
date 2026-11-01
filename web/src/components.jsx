@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import * as m from 'motion/react-m';
 import { TREATMENTS, treatmentPhase, RED_FLAGS } from '../../core/treatments.js';
 import { STATUS_TEXT } from '../../core/trends.js';
 import { displayScore } from '../../core/concerns.js';
 import { cropToJpeg, faceBrightness, lightLabel, loadImage } from './lib/image.js';
-import { reducedMotion } from './lib/motion.js';
+import { reducedMotion } from './lib/reduced.js';
+import { useStore } from './lib/store.jsx';
 import { PALETTES, usePalette } from './lib/palette.js';
 
 /** Colour theme buttons (Lotus, Orchard Market, Cream), each with its three colours. */
@@ -61,6 +63,7 @@ export function Logo() {
 
 // Frame -----------------------------------------------------------------------
 export function TopBar({ title, back, right, mode }) {
+  const { profile } = useStore();
   return (
     <header className="topbar">
       {back ? (
@@ -75,7 +78,7 @@ export function TopBar({ title, back, right, mode }) {
       )}
       {title && <span className="sr-only">{title}</span>}
       <div className="row">
-        {mode === 'demo' && <span className="mode-chip" title="No YouCam API key configured on the server">Demo results</span>}
+        {profile?.sample ? <span className="mode-chip">Sample journey</span> : mode === 'demo' && <span className="mode-chip">Simulated results</span>}
         {right}
       </div>
     </header>
@@ -86,7 +89,7 @@ const TABS = [
   ['/today', 'today', 'Today'],
   ['/skin', 'skin', 'Skin'],
   ['/shelf', 'shelf', 'Shelf'],
-  ['/look', 'look', 'Hair & brows'],
+  ['/look', 'look', 'Looks'],
   ['/ask', 'ask', 'Ask'],
 ];
 
@@ -100,7 +103,7 @@ export function TabBar({ path }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const current = (to) => path === to || (to === '/skin' && path === '/checkin') || (to === '/look' && path === '/fitting');
+  const current = (to) => path === to || (to === '/skin' && (path === '/checkin' || path === '/result')) || (to === '/look' && path === '/fitting');
   const at = TABS.findIndex(([to]) => current(to));
   return (
     <div className="tabbar" ref={ref}>
@@ -118,9 +121,9 @@ export function TabBar({ path }) {
 }
 
 /**
- * The slow three.js background. three.js loads after the first paint, only
- * when transparency is wanted; until then (or without WebGL) a still CSS
- * gradient shows. Reduced motion gets a single still frame.
+ * The soft background: a small WebGL shader that loads after the first paint,
+ * only when transparency is wanted; until then (or without WebGL) a still CSS
+ * gradient shows. It glides when a screen opens, then holds still.
  */
 export function Ambient() {
   const ref = useRef(null);
@@ -187,7 +190,7 @@ export function RoadAhead({ profile, checkins }) {
   }, [current]);
 
   return (
-    <div className="road" ref={ref} role="group" aria-label="Your treatment timeline">
+    <div className="road" ref={ref} role="group" tabIndex={0} aria-label="Your treatment timeline">
       <div className="road-inner" role="list">
         {weeks.map((w) => (
           <div key={w} role="listitem" className={`road-week${w < current ? ' past' : ''}${w === current ? ' here' : ''}${checkedWeeks.has(w) ? ' checked' : ''}`} aria-label={`${w === 0 ? 'Before treatment' : `Week ${w}`}${w === current ? ', you are here' : ''}${checkedWeeks.has(w) ? ', checked in' : ''}`}>
@@ -217,8 +220,9 @@ export function NoteCard({ note }) {
   return (
     <article className={`note ${note.level}`}>
       <div className="note-kicker">{KICKER[note.level]}</div>
-      <h3>{note.title}</h3>
-      {note.subtitle && <div className="sub">{note.subtitle}</div>}
+      {/* The meaning leads; the numbers behind it follow, in whole points. */}
+      <h3>{note.subtitle || note.title}</h3>
+      {note.subtitle && <div className="sub">{note.title.replace(/\d+\.\d+/g, (n) => Math.round(Number(n)))}</div>}
       <p>{note.body}</p>
       {note.also?.length > 0 && <p className="small muted">Also common: {note.also.join('; ')}.</p>}
       {note.confirm && (
@@ -240,7 +244,7 @@ export function NoteCard({ note }) {
 /** Safety signs that mean calling the care team now: the same list, at reading size, on Today and Result. */
 export function RedFlags({ style }) {
   return (
-    <details className="sheet" open style={style} data-still>
+    <details id="when-to-call" className="sheet" open style={style} data-still>
       <summary style={{ cursor: 'pointer', fontWeight: 700 }}>
         <span style={{ color: 'var(--call)' }}>Call your care team now if you notice…</span>
       </summary>
@@ -286,7 +290,7 @@ export function ScoreRow({ row, pressed, onPress }) {
     return (
       <div className="score" style={{ cursor: 'default' }}>
         <span className="name">{row.label}</span>
-        <span className="value">{value ?? '–'}</span>
+        <span className="value">{value ?? 'n/a'}</span>
         {trend}
       </div>
     );
@@ -294,7 +298,7 @@ export function ScoreRow({ row, pressed, onPress }) {
   return (
     <button type="button" className="score" aria-pressed={pressed} onClick={onPress}>
       <span className="name">{row.label}</span>
-      <span className="value" aria-label={`score ${value ?? 'not measured'}`}>{value ?? '–'}</span>
+      <span className="value" aria-label={`score ${value ?? 'not measured'}`}>{value ?? 'n/a'}</span>
       {trend}
     </button>
   );
@@ -311,6 +315,64 @@ export function Steps({ steps, at }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+/** What shows while a try-on renders: a quiet moving line and what to expect. */
+export function Working({ label = 'Rendering. This usually takes 10 to 30 seconds.' }) {
+  return (
+    <div className="working" role="status">
+      <span className="working-line" aria-hidden="true">
+        <span />
+      </span>
+      {label}
+    </div>
+  );
+}
+
+/**
+ * Opens and closes with a short height and fade, so people keep their place.
+ * Its contents mount on first open and then stay, so a half-done try-on survives closing.
+ */
+export function Collapse({ open, id, children }) {
+  const [seen, setSeen] = useState(open);
+  useEffect(() => {
+    if (open) setSeen(true);
+  }, [open]);
+  return (
+    <m.div
+      id={id}
+      className="collapse"
+      initial={false}
+      animate={open ? { height: 'auto', opacity: 1, visibility: 'visible' } : { height: 0, opacity: 0, transitionEnd: { visibility: 'hidden' } }}
+      transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+    >
+      {seen && children}
+    </m.div>
+  );
+}
+
+/** One row of a hub: a title and a one-line hint, opening in place. */
+export function Disclosure({ id, title, hint, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const panel = `${id}-panel`;
+  return (
+    <section className="sheet disclosure" id={id}>
+      <h2>
+        <button type="button" className="disclosure-head" aria-expanded={open} aria-controls={panel} onClick={() => setOpen((o) => !o)}>
+          <span>
+            <span className="disclosure-title">{title}</span>
+            {hint && <span className="disclosure-hint">{hint}</span>}
+          </span>
+          <svg className="chevron" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </h2>
+      <Collapse open={open} id={panel}>
+        <div className="disclosure-body stack">{children}</div>
+      </Collapse>
+    </section>
   );
 }
 
@@ -352,6 +414,30 @@ export function CompareSlider({ before, after, beforeLabel = 'You today', afterL
   const ref = useRef(null);
   const drag = useRef(null);
   const [split, setSplit] = useState(50);
+  // One slow nudge when a result arrives, so it's clear the divider moves.
+  useEffect(() => {
+    if (reducedMotion()) return undefined;
+    let raf = 0;
+    let t0 = 0;
+    const tick = (now) => {
+      t0 ||= now;
+      const p = (now - t0) / 1100;
+      if (drag.current) return;
+      if (p >= 1) {
+        setSplit(50);
+        return;
+      }
+      setSplit(50 - 14 * Math.sin(p * Math.PI));
+      raf = requestAnimationFrame(tick);
+    };
+    const wait = setTimeout(() => {
+      raf = requestAnimationFrame(tick);
+    }, 650);
+    return () => {
+      clearTimeout(wait);
+      cancelAnimationFrame(raf);
+    };
+  }, [after]);
   const move = (clientX) => {
     const r = ref.current.getBoundingClientRect();
     setSplit(Math.max(0, Math.min(100, ((clientX - r.left) / r.width) * 100)));
@@ -359,9 +445,12 @@ export function CompareSlider({ before, after, beforeLabel = 'You today', afterL
   // Touch: only a clearly horizontal drag moves the split, so vertical swipes
   // still scroll the page (touch-action: pan-y in CSS).
   return (
-    <div
+    <m.div
       ref={ref}
       className="compare"
+      initial={{ opacity: 0, scale: 0.985 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
       style={{ '--split': `${split}%` }}
       onPointerDown={(e) => {
         drag.current = { x: e.clientX, y: e.clientY, active: e.pointerType === 'mouse' };
@@ -386,7 +475,11 @@ export function CompareSlider({ before, after, beforeLabel = 'You today', afterL
     >
       <img src={before} alt={beforeLabel} />
       <img src={after} alt={afterLabel} className="after" />
-      <span className="handle" aria-hidden="true" />
+      <span className="handle" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path d="m9 7-5 5 5 5m6-10 5 5-5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
       <span className="tag" style={{ left: 12 }} aria-hidden="true">{beforeLabel}</span>
       <span className="tag" style={{ right: 12 }} aria-hidden="true">{afterLabel}</span>
       <input
@@ -399,7 +492,7 @@ export function CompareSlider({ before, after, beforeLabel = 'You today', afterL
         aria-label={`Compare ${beforeLabel} with ${afterLabel}`}
         aria-valuetext={`${Math.round(split)}% ${beforeLabel}, ${100 - Math.round(split)}% ${afterLabel}`}
       />
-    </div>
+    </m.div>
   );
 }
 
@@ -471,16 +564,25 @@ function clampView(v, b, img) {
   return { ...v, tx: Math.max(-mx, Math.min(mx, v.tx)), ty: Math.max(-my, Math.min(my, v.ty)) };
 }
 
-function Guide({ mode }) {
+function Guide({ mode, idle }) {
+  // Before a camera or photo is on, the guide sits calmly on the page colour.
+  const stroke = idle ? 'var(--mark)' : '#fff';
   if (mode === 'portrait') {
     return (
       <svg className="guide" viewBox="0 0 300 400" preserveAspectRatio="none" aria-hidden="true">
-        <ellipse cx="150" cy="150" rx="62" ry="82" fill="none" stroke="#fff" strokeWidth="3" strokeDasharray="8 8" />
-        <path d="M40 400 C 50 300, 100 270, 150 268 S 250 300, 260 400" fill="none" stroke="#fff" strokeWidth="3" strokeDasharray="8 8" />
+        <ellipse cx="150" cy="150" rx="62" ry="82" fill="none" stroke={stroke} strokeWidth="2" strokeDasharray={idle ? undefined : '8 8'} />
+        <path d="M40 400 C 50 300, 100 270, 150 268 S 250 300, 260 400" fill="none" stroke={stroke} strokeWidth="2" strokeDasharray={idle ? undefined : '8 8'} />
       </svg>
     );
   }
   if (mode === 'product' || mode === 'scalp') return null;
+  if (idle) {
+    return (
+      <svg className="guide" viewBox="0 0 300 400" preserveAspectRatio="none" aria-hidden="true">
+        <ellipse cx={OVAL.cx * 300} cy={OVAL.cy * 400} rx={OVAL.rx * 300} ry={OVAL.ry * 400} fill="none" stroke={stroke} strokeWidth="2" />
+      </svg>
+    );
+  }
   return (
     <svg className="guide" viewBox="0 0 300 400" preserveAspectRatio="none" aria-hidden="true">
       <defs>
@@ -625,14 +727,26 @@ export function Capture({ mode = 'face', ghost, maxLong = 2560, onCapture, cta =
     onCapture({ ...out, brightness: faceBrightness(upload, faceR), source: 'upload' });
   }
 
+  // The sample journey skips setup, so this notice shows before a first real photo.
+  const { profile, saveProfile } = useStore();
   const ghostStyle = useMemo(() => ({ left: `${frac.x * 100}%`, top: `${frac.y * 100}%`, width: `${frac.w * 100}%`, height: `${frac.h * 100}%` }), [frac]);
   const lightInfo = lightLabel(light);
+
+  if (profile && !profile.consentedAt) {
+    return (
+      <div className="note stack">
+        <div className="note-kicker">Before you add your own photo</div>
+        <p>Photos you analyse go to YouCam (Perfect Corp.). Still Me asks YouCam to delete each one as soon as the result arrives, and anything left over expires within 30 days. Your journal stays on this device.</p>
+        <button type="button" className="btn secondary" onClick={() => saveProfile({ ...profile, consentedAt: new Date().toISOString() })}>OK, add a photo</button>
+      </div>
+    );
+  }
 
   return (
     <div className="stack">
       <div
         ref={box}
-        className={`capture${state === 'frame' ? ' framing' : ''}`}
+        className={`capture${state === 'frame' ? ' framing' : ''}${state === 'choose' ? ' idle' : ''}`}
         onPointerDown={(e) => {
           if (state !== 'frame') return;
           e.currentTarget.setPointerCapture(e.pointerId);
@@ -661,7 +775,7 @@ export function Capture({ mode = 'face', ghost, maxLong = 2560, onCapture, cta =
           <img className="frame-img" src={upload.src} alt="Your photo" draggable="false" style={{ ...coverSize(upload), transform: `translate(-50%, -50%) translate(${view.tx}px, ${view.ty}px) scale(${view.zoom})` }} />
         )}
         {ghost && showGhost && state !== 'choose' && <img className={`ghost${state === 'camera' ? ' mirror' : ''}`} src={ghost} alt="" style={ghostStyle} />}
-        <Guide mode={mode} />
+        <Guide mode={mode} idle={state === 'choose'} />
         {state === 'choose' && (
           <div className="light" style={{ top: 'auto', bottom: 12 }}>
             <span className="light-pill" style={{ textAlign: 'center' }}>{mode === 'face' ? 'Your face will go in the oval.' : mode === 'portrait' ? 'Head and shoulders, hair down.' : mode === 'scalp' ? 'Head lowered, parting and crown in view.' : 'One item, filling most of the picture.'}</span>

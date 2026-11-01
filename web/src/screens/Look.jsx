@@ -4,7 +4,7 @@ import { api } from '../lib/api.js';
 import { withFiles, withResult, rememberFileId } from '../lib/files.js';
 import { db, newId, today } from '../lib/db.js';
 import { loadImage, cropToJpeg } from '../lib/image.js';
-import { TopBar, Capture, Steps, ErrorBox, CompareSlider, Icon } from '../components.jsx';
+import { TopBar, Capture, Steps, ErrorBox, CompareSlider, Disclosure, Working, Icon } from '../components.jsx';
 import { browPatternFor, FACE_SHAPE_TIPS, LASH_STYLES, LIP_SHADES } from '../../../core/brows.js';
 import { BROW_PRODUCTS } from '../../../core/catalog.js';
 import { closest } from '../../../core/color.js';
@@ -32,7 +32,7 @@ function Swatch({ label, hex, name, family, note }) {
       <div className="chipcolor" style={{ background: hex || 'var(--tint)' }} />
       <div>
         <strong>{label}</strong>
-        {family ? name || 'not read' : <>{name ? `${name}, ` : ''}{hex || 'not read'}</>}
+        {family ? name || 'Not read' : hex ? 'Measured' : 'Not read'}
         {note && <span className="fine" style={{ display: 'block' }}>{note}</span>}
       </div>
     </div>
@@ -141,7 +141,7 @@ function PrintGaps({ print }) {
     <div className="banner" role="status">
       {halves.map(([k, label]) => {
         const e = print.errors[k];
-        const when = print.kept?.[k] ? new Date(`${print.kept[k]}T12:00:00`).toLocaleDateString() : null;
+        const when = print.kept?.[k] ? new Date(`${print.kept[k]}T12:00:00`).toLocaleDateString('en-GB') : null;
         return (
           <p key={k}>
             <strong>{label} couldn’t be read from this photo.</strong> {e.message}{' '}
@@ -211,12 +211,13 @@ function PrintSection({ retake, setRetake }) {
   const f = print.face || {};
   const tip = FACE_SHAPE_TIPS[String(f.faceShape || '').toLowerCase()];
   return (
-    <section className="sheet stack" aria-labelledby="print" id="print-section">
-      <div className="section-title">
-        <h2 id="print" tabIndex={-1}>Your Hair & Brow Print</h2>
-        <span className="fine">Saved {new Date(`${print.date}T12:00:00`).toLocaleDateString()}</span>
-      </div>
-      {(print.sample || print.demo) && <div className="banner info">{print.sample ? 'Sample print.' : 'Demo result: colours and shapes are placeholders until a YouCam key is configured.'}</div>}
+    <Disclosure
+      id="print-section"
+      title="Your Hair & Brow Print"
+      hint={[c.hair_color_name && `${c.hair_color_name} hair`, f.browShape && `${f.browShape.toLowerCase()} brows`, f.faceShape && `${f.faceShape.toLowerCase()} face`].filter(Boolean).join(', ') || `Saved ${new Date(`${print.date}T12:00:00`).toLocaleDateString('en-GB')}`}
+      defaultOpen={justSaved || print.partial}
+    >
+      {print.demo && <div className="banner info">Simulated colours and shapes, for trying the app.</div>}
       <PrintGaps print={print} />
       {justSaved && !print.partial && <p className="fine" role="status">Saved on this device. Your print can’t be retaken once your hair changes, so download a copy now and then from Settings.</p>}
       <div className="swatches">
@@ -242,7 +243,7 @@ function PrintSection({ retake, setRetake }) {
         <a className="btn primary" href="#/fitting">Fitting sheet for your specialist</a>
         <button className="btn secondary" onClick={() => setRetake(true)}>Retake</button>
       </div>
-    </section>
+    </Disclosure>
   );
 }
 
@@ -356,7 +357,7 @@ function WigSection({ portraitState }) {
     setSaved(false);
     try {
       const out = await withResult(`wig:${result.id}`, result.image, (fileId) => api.hairColor({ fileId, family }));
-      setResult((r) => ({ ...r, id: newId(), image: out.image, demo: out.demo, mine: true }));
+      setResult((r) => (r ? { ...r, id: newId(), image: out.image, demo: out.demo, mine: true } : r));
     } catch (err) {
       setError(err);
     }
@@ -372,24 +373,24 @@ function WigSection({ portraitState }) {
 
   const visible = showAll ? templates : templates.slice(0, 9);
   return (
-    <section className="sheet stack" aria-labelledby="wig">
-      <h2 id="wig">Try wig styles on yourself</h2>
+    <div className="stack">
       <p>Try styles from home, at your own pace, before you visit a wig specialist or order online. Many shops won’t take a wig back once it has been worn.</p>
       <p className="sr-only" role="status">{busy ? 'Rendering your try-on…' : saved ? 'Saved to your looks.' : result ? 'Try-on ready.' : ''}</p>
       <PortraitPicker portrait={portrait} save={save} clear={clear} why="Hairstyle try-on works from one portrait photo." />
       {portrait && result && (
         <div className="stack" ref={resultRef}>
           <CompareSlider before={portrait.dataUrl} after={result.image} afterLabel={result.demo ? `${result.label} (demo)` : result.label} />
-          {result.demo && <div className="banner">Demo mode: this is your photo unchanged. With a YouCam key on the server, this shows the real try-on.</div>}
+          {result.demo && <div className="banner">Simulated: this is your photo unchanged. The live app shows the real try-on.</div>}
           <div className="row wrap">
-            <button className="btn primary" onClick={saveLook} aria-disabled={saved || undefined}>{saved ? 'Saved to your looks' : 'Save to my looks'}</button>
+            <button className="btn primary" onClick={saveLook} disabled={busy} aria-disabled={saved || undefined}>{saved ? 'Saved to your looks' : 'Save to my looks'}</button>
             {family && !result.mine && (
               <button className="btn secondary" onClick={recolour} disabled={busy}>
-                {busy ? 'Recolouring…' : `In my own colour (${family}, 1 unit)`}
+                {busy ? 'Recolouring…' : `In my own colour (${family})`}
               </button>
             )}
-            <button className="btn secondary" onClick={() => setResult(null)}>Try another</button>
+            <button className="btn secondary" onClick={() => setResult(null)} disabled={busy}>Try another</button>
           </div>
+          {busy && <Working label="Recolouring. This usually takes a few seconds." />}
           <ErrorBox error={error} />
         </div>
       )}
@@ -442,9 +443,10 @@ function WigSection({ portraitState }) {
           <button className="btn primary block" onClick={tryOn} disabled={busy || (!chosen && !isRef)}>
             {busy ? 'Rendering your try-on…' : 'Try it on'}
           </button>
+          {busy && <Working />}
         </>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -484,8 +486,7 @@ function HeadwearSection({ portraitState }) {
   }
 
   return (
-    <section className="sheet stack" aria-labelledby="hats">
-      <h2 id="hats">Hats, caps and headbands</h2>
+    <div className="stack">
       <p>Not everyone wants a wig. Try a soft cap, beanie or sun hat from any shop, with YouCam’s hat try-on.</p>
       <p className="note">Good to know: this makes a new styled photo, not an edit of yours. YouCam changes the outfit and setting, and your face can look a little different. Use it to judge the hat’s shape and colour.</p>
       <p className="sr-only" role="status">{busy ? 'Rendering your try-on…' : saved ? 'Saved to your looks.' : result ? 'Try-on ready.' : ''}</p>
@@ -495,7 +496,7 @@ function HeadwearSection({ portraitState }) {
         <div className="stack" ref={resultRef}>
           <img src={result.image} alt={demoLabel('Head-covering try-on', result.demo)} style={{ width: '100%', borderRadius: 16 }} />
           <p className="fine">A new styled photo made by YouCam, so the outfit, setting and some face details differ from yours.</p>
-          {result.demo && <div className="banner">Demo mode: this is your photo unchanged. With a YouCam key on the server, this shows the real try-on.</div>}
+          {result.demo && <div className="banner">Simulated: this is your photo unchanged. The live app shows the real try-on.</div>}
           <div className="row wrap">
             <button className="btn primary" aria-disabled={saved || undefined} onClick={async () => { if (saved) return; await addLook({ id: newId(), kind: 'headwear', image: result.image, label: demoLabel('Head covering', result.demo), createdAt: new Date().toISOString(), demo: result.demo }); setSaved(true); }}>
               {saved ? 'Saved to your looks' : 'Save to my looks'}
@@ -541,9 +542,10 @@ function HeadwearSection({ portraitState }) {
           <button className="btn primary block" onClick={tryOn} disabled={busy || tooSmall || !gender || !(refPhoto || refUrl)}>
             {busy ? 'Rendering your try-on…' : 'Try it on'}
           </button>
+          {busy && <Working />}
         </>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -584,10 +586,9 @@ function BrowSection({ onNeedPrint }) {
 
   if (!print) {
     return (
-      <section className="sheet stack" aria-labelledby="brows">
-        <h2 id="brows">Your brows, recreated</h2>
+      <div className="stack">
         <p>Once your print is saved, Still Me can draw your natural brow shape and colour back on, a reference for brow pencils, stencils or a brow artist if your brows thin.</p>
-      </section>
+      </div>
     );
   }
 
@@ -629,8 +630,7 @@ function BrowSection({ onNeedPrint }) {
   const lookName = extras.length ? `${name}, with ${extras.length > 1 ? `${extras.slice(0, -1).join(', ')} and ${extras.at(-1)}` : extras[0]}` : name;
   const pencil = chosenPencil || BROW_PRODUCTS.find((p) => p.hex.toLowerCase() === String(myBrows || '').toLowerCase());
   return (
-    <section className="sheet stack" aria-labelledby="brows">
-      <h2 id="brows">Your brows, recreated</h2>
+    <div className="stack">
       <p>Brows and lashes can thin during chemotherapy. See your own shape and colour drawn back on with YouCam makeup try-on. Skin smoothing is switched off, so the rest of your face is untouched.</p>
       <p className="sr-only" role="status">{busy ? 'Drawing your brows…' : saved ? 'Saved to your looks.' : result ? 'Brow preview ready.' : ''}</p>
       {todayPhoto ? (
@@ -651,7 +651,7 @@ function BrowSection({ onNeedPrint }) {
       {result ? (
         <div className="stack" ref={resultRef}>
           <CompareSlider before={source.dataUrl} after={result.image} beforeLabel={source.label} afterLabel={result.demo ? `${extras.length ? 'Preview' : name} (demo)` : extras.length ? 'Preview' : name} />
-          {result.demo && <div className="banner">Demo mode: this is your photo unchanged. With a YouCam key on the server, this draws the brows{extras.length ? ` and ${extras.length > 1 ? 'extras' : extras[0]}` : ''}.</div>}
+          {result.demo && <div className="banner">Simulated: this is your photo unchanged. The live app draws the brows.</div>}
           <div className="row wrap">
             <button className="btn primary" aria-disabled={saved || undefined} onClick={async () => { if (saved) return; await addLook({ id: newId(), kind: 'brows', image: result.image, label: demoLabel(`Brows: ${lookName}`, result.demo), createdAt: new Date().toISOString(), demo: result.demo }); setSaved(true); }}>
               {saved ? 'Saved to your looks' : 'Save to my looks'}
@@ -756,7 +756,7 @@ function BrowSection({ onNeedPrint }) {
           )}
         </>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -800,7 +800,7 @@ function Gallery() {
       <div className="gallery">
         {looks.map((l) => (
           <figure key={l.id}>
-            <img src={l.image} alt={l.label} />
+            <img src={l.image} alt={l.label} loading="lazy" />
             <figcaption className="row spread">
               <span>{l.label}</span>
               <button className="linkish" onClick={() => removeLook(l.id)} aria-label={`Remove ${l.label}`}>Remove</button>
@@ -849,40 +849,40 @@ function HairCheckSection() {
 
   const first = checks[0];
   const last = checks[checks.length - 1];
-  const dropped = first && last && first !== last && Number(first.score) - Number(last.score) >= 0.5;
+  const dropped = first && last && first !== last && Number.isFinite(first.score) && Number.isFinite(last.score) && first.score - last.score >= 0.5;
   const thin = last && /Low/.test(last.term || '');
+  const simulated = last?.demo;
   return (
-    <section className="sheet stack" aria-labelledby="hairwatch">
-      <h2 id="hairwatch">Hair watch</h2>
-      <p>Once a week, one photo of the top of your head. YouCam’s hair density analysis reads how much scalp shows at your crown and parting, so you can see thinning start and plan, rather than be surprised.</p>
+    <div className="stack">
+      <p>Once a week, one photo of the top of your head. It reads how much scalp shows at your crown and parting, so you can see thinning start and plan ahead.</p>
       {checks.length > 0 && (
         <ol className="hair-checks">
           {checks.slice(-6).map((c) => (
             <li key={c.id}>
-              <span className="fine">{c.week ? `Week ${c.week}` : 'Before'}, {new Date(`${c.date}T12:00:00`).toLocaleDateString()}</span>
+              <span className="fine">{c.week ? `Week ${c.week}` : 'Before'}, {new Date(`${c.date}T12:00:00`).toLocaleDateString('en-GB')}</span>
               <span className="density-bar" aria-hidden="true"><span style={{ width: `${Math.max(4, (Number(c.score) / 3) * 100)}%` }} /></span>
-              <strong>{DENSITY_LABEL[c.term] || c.term || 'Not read'}{c.demo ? ' (demo)' : ''}</strong>
+              <strong>{DENSITY_LABEL[c.term] || c.term || 'Not read'}{c.demo ? ' (simulated)' : ''}</strong>
             </li>
           ))}
         </ol>
       )}
-      {(dropped || thin) && (
+      {(dropped || thin) && !simulated && (
         <div className="note watch" data-still>
-          <p className="note-kicker">Your hair is thinning</p>
+          <div className="note-kicker">Your hair is thinning</div>
           <p className="small">Many people find a short cut at this point makes the change gentler. It’s also a good time for a wig fitting, while your print still matches your own hair. Your care team can tell you what to expect next.</p>
         </div>
       )}
       {open ? (
         <div className="stack">
           <p className="fine">Face a window or lamp, then lower your head about 45° so the camera sees your parting and crown. Same spot and light each week.</p>
-          {busy ? <p role="status">Reading your photo…</p> : <Capture key={key} mode="scalp" maxLong={1600} onCapture={onCapture} cta="Take hair photo" />}
+          {busy ? <Working label="Reading your photo…" /> : <Capture key={key} mode="scalp" maxLong={1600} onCapture={onCapture} cta="Take hair photo" />}
           <ErrorBox error={error} />
           <button className="btn quiet" onClick={() => setOpen(false)}>Not now</button>
         </div>
       ) : (
-        <button className="btn secondary" onClick={() => setOpen(true)}>{checks.length ? 'Add this week’s hair check (1 unit)' : 'Start hair watch (1 unit)'}</button>
+        <button className="btn secondary" onClick={() => setOpen(true)}>{checks.length ? 'Add this week’s hair check' : 'Start hair watch'}</button>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -921,15 +921,14 @@ function EarringsSection({ portraitState }) {
   }
 
   return (
-    <section className="sheet stack" aria-labelledby="earrings">
-      <h2 id="earrings">Earrings</h2>
+    <div className="stack">
       <p>When hair and brows are thinner, earrings bring the eye back to your face. Try a pair from any shop on your own portrait.</p>
       {!portrait ? (
         <PortraitPicker portrait={portrait} save={save} clear={clear} why="Earring try-on uses the same portrait as wig try-on." />
       ) : result ? (
         <div className="stack" ref={resultRef}>
           <CompareSlider before={portrait.dataUrl} after={result.image} afterLabel={result.demo ? 'Earring (demo)' : 'Earring'} />
-          {result.demo && <div className="banner">Demo mode: this is your photo unchanged. With a YouCam key on the server, this shows the real try-on.</div>}
+          {result.demo && <div className="banner">Simulated: this is your photo unchanged. The live app shows the real try-on.</div>}
           <div className="row wrap">
             <button className="btn primary" aria-disabled={saved || undefined} onClick={async () => { if (saved) return; await addLook({ id: newId(), kind: 'earrings', image: result.image, label: demoLabel('Earrings', result.demo), createdAt: new Date().toISOString(), demo: result.demo }); setSaved(true); }}>
               {saved ? 'Saved to your looks' : 'Save to my looks'}
@@ -965,10 +964,11 @@ function EarringsSection({ portraitState }) {
             </div>
           </fieldset>
           <ErrorBox error={error} onRetry={error?.fix === 'photo' ? clear : undefined} />
-          <button className="btn primary block" onClick={tryOn} disabled={busy || !(refPhoto || refUrl)}>{busy ? 'Rendering your try-on…' : 'Try it on (1 unit)'}</button>
+          <button className="btn primary block" onClick={tryOn} disabled={busy || !(refPhoto || refUrl)}>{busy ? 'Rendering your try-on…' : 'Try it on'}</button>
+          {busy && <Working />}
         </>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -1014,8 +1014,7 @@ function RegrowthSection({ portraitState }) {
   }
 
   return (
-    <section className="sheet stack" aria-labelledby="regrowth">
-      <h2 id="regrowth">How your hair might grow back</h2>
+    <div className="stack">
       <p>After chemotherapy, hair often grows back different for a while: curlier, finer, or another colour, often grey at first. It usually settles over months. Seeing one possibility on your own photo can make it less of a surprise.</p>
       {!portrait ? (
         <PortraitPicker portrait={portrait} save={save} clear={clear} why="The regrowth preview uses the same portrait as wig try-on." />
@@ -1023,7 +1022,7 @@ function RegrowthSection({ portraitState }) {
         <div className="stack" ref={resultRef}>
           <CompareSlider before={portrait.dataUrl} after={result.image} afterLabel={result.demo ? 'Regrowth (demo)' : 'One possibility'} />
           <p className="fine">An illustration, not a prediction. Your care team can tell you what to expect after your treatment.</p>
-          {result.demo && <div className="banner">Demo mode: this is your photo unchanged. With a YouCam key on the server, this shows the real preview.</div>}
+          {result.demo && <div className="banner">Simulated: this is your photo unchanged. The live app shows the real preview.</div>}
           <div className="row wrap">
             <button className="btn primary" aria-disabled={saved || undefined} onClick={async () => { if (saved) return; await addLook({ id: newId(), kind: 'regrowth', image: result.image, label: demoLabel(`Regrowth: ${result.label}`, result.demo), createdAt: new Date().toISOString(), demo: result.demo }); setSaved(true); }}>
               {saved ? 'Saved to your looks' : 'Save to my looks'}
@@ -1054,10 +1053,11 @@ function RegrowthSection({ portraitState }) {
             </div>
           </fieldset>
           <ErrorBox error={error} onRetry={error?.fix === 'photo' ? clear : undefined} />
-          <button className="btn primary block" onClick={run} disabled={busy || !tpl}>{busy ? 'Rendering your preview…' : 'Show me (2 units)'}</button>
+          <button className="btn primary block" onClick={run} disabled={busy || !tpl}>{busy ? 'Rendering your preview…' : 'Show me'}</button>
+          {busy && <Working />}
         </>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -1081,14 +1081,28 @@ export default function Look() {
         <h1>Hair & brows</h1>
         <p className="muted">Keep your own look on record, and try on what comes next.</p>
       </div>
-      <PrintSection retake={retakePrint} setRetake={setRetakePrint} />
-      <HairCheckSection />
-      <WigSection portraitState={portraitState} />
-      <BrowSection onNeedPrint={needPrint} />
-      <HeadwearSection portraitState={portraitState} />
-      <EarringsSection portraitState={portraitState} />
-      <RegrowthSection portraitState={portraitState} />
       <Gallery />
+      <PrintSection retake={retakePrint} setRetake={setRetakePrint} />
+      <div className="hub">
+        <Disclosure id="wig" title="Wigs" hint="Styles on your own face, in your own colour">
+          <WigSection portraitState={portraitState} />
+        </Disclosure>
+        <Disclosure id="brows" title="Brows, lashes and lips" hint="Your own brows, drawn back on">
+          <BrowSection onNeedPrint={needPrint} />
+        </Disclosure>
+        <Disclosure id="earrings" title="Earrings" hint="From any shop, on your own photo">
+          <EarringsSection portraitState={portraitState} />
+        </Disclosure>
+        <Disclosure id="hats" title="Hats and caps" hint="A new styled photo with the hat from any shop">
+          <HeadwearSection portraitState={portraitState} />
+        </Disclosure>
+        <Disclosure id="regrowth" title="How your hair might grow back" hint="One possibility, on your own photo">
+          <RegrowthSection portraitState={portraitState} />
+        </Disclosure>
+        <Disclosure id="hairwatch" title="Hair watch" hint="A weekly check of your parting and crown">
+          <HairCheckSection />
+        </Disclosure>
+      </div>
       <InsuranceHelp />
     </div>
   );

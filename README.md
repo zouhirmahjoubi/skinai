@@ -8,8 +8,8 @@
 
 | Criterion | What Still Me shows |
 | --- | --- |
-| **Technological implementation** | 10 YouCam AI features: 6 over REST and 4 through YouCam's hosted MCP servers (beauty and fashion), plus live unit prices read through MCP. A companion agent calls Still Me's own rule engines as tools and proposes YouCam try-ons that run only after a tap. Every YouCam task is deleted once its result is downloaded. 72 automated tests. |
-| **Design** | One journey for one person: a print of their own hair and brows before treatment, weekly skin and hair checks, try-ons for what comes next, and printable pages for the wig fitter, the insurer and the care team. Mobile first, three colour themes, reduced-motion aware. |
+| **Technological implementation** | 10 YouCam AI features: 6 over REST and 4 through YouCam's hosted MCP servers (beauty and fashion), plus live unit prices read through MCP. A companion agent calls Still Me's own rule engines as tools and proposes YouCam try-ons that run only after a tap. Every YouCam task is deleted once its result is downloaded. 163 automated tests. |
+| **Design** | One journey for one person: a print of their own hair and brows before treatment, weekly skin and hair checks, try-ons for what comes next, and printable pages for the wig fitter, the insurer and the care team. Mobile first, three colour themes, and motion built for people who may feel unwell: warnings never move, nothing bounces or loops, and Settings has a Less motion switch. |
 | **Potential impact** | For people starting chemotherapy, radiation or targeted therapy. A generic skin app reads an EGFR-inhibitor rash as acne and sells products that make it worse. A wig chosen after hair loss can't be matched to the person's own hair, and usually can't be returned once worn. |
 | **Quality of idea** | Skin AI read against the treatment and the week, not a generic score. Try-on used to keep a person recognisable to themselves: their own brows drawn back, a wig in their own colour, earrings to frame the face, and how hair might grow back. |
 
@@ -29,10 +29,10 @@ Most people starting chemotherapy, radiation or targeted therapy are told their 
 
 | | | |
 | --- | --- | --- |
-| <img src="docs/screenshots/6-ask-plan.jpg" width="260" alt="Ask Still Me planning a wedding look from the person's own print, with the live unit cost"><br>**Ask Still Me** plans a look from your own print, with the live YouCam unit cost. | <img src="docs/screenshots/7-ask-lookbook.jpg" width="260" alt="Lookbook of the planned try-ons with Keep and Not for me buttons"><br>**Run, then keep or reject.** A wig in your own colour (Hairstyle + Hair Color via MCP) and your own brows and lips. | <img src="docs/screenshots/5-hair-watch.jpg" width="260" alt="Hair watch with a weekly hair density reading"><br>**Hair watch** reads scalp visibility each week (Hair Density via MCP). |
-| <img src="docs/screenshots/2-today.jpg" width="260" alt="Today screen with the treatment timeline in week 3"><br>**Today**: the treatment timeline, week 3 of the labelled sample journey. | <img src="docs/screenshots/3-care-team-note.jpg" width="260" alt="Check-in note telling the user to contact their care team about an EGFR-inhibitor rash"><br>**A score drop read against the treatment**: the EGFR rash, with "tell your care team". | <img src="docs/screenshots/4-shelf-not-right-now.jpg" width="260" alt="Shelf moving retinol, scrubs and fragranced products to Not right now"><br>**Gentle shelf**: products that would make it worse move to *Not right now*, with the reason. |
+| <img src="docs/screenshots/2-portrait-gathering.jpg" width="260" alt="The welcome page, with the portrait gathering from points beside the words Still you"><br>**Welcome.** The portrait gathers from points with three.js, then the crisp photo takes over. | <img src="docs/screenshots/5-my-looks.jpg" width="260" alt="A lookbook of wigs, brows and earrings on one person"><br>**Looks.** Real YouCam results: wigs in your own colour, your brows, earrings, how hair might grow back. | <img src="docs/screenshots/6-ask-plan.jpg" width="260" alt="The companion planning a look for a wedding, with its cost and a Run button"><br>**Ask.** A plan from your own print with its YouCam cost. Nothing runs until you tap. |
+| <img src="docs/screenshots/3-care-team-note.jpg" width="260" alt="A check-in note saying this is an acne-like rash, tell your care team"><br>**Today.** A score drop read against the treatment: the EGFR rash, with what to do. | <img src="docs/screenshots/4-shelf-warning.jpg" width="260" alt="A warning that a saved acne gel is no longer right, above the shelf"><br>**Shelf.** Something you saved stopped being right for you, and it says so first. | <img src="docs/screenshots/7-print.jpg" width="260" alt="Hair and brow print with measured colours and face shape"><br>**Print.** Your own colours and shapes, kept for your wig specialist. |
 
-The sample journey (Sam) is labelled as a sample in the app. The other screenshots are live YouCam results on an AI-generated portrait (the welcome page woman), never a real person.
+These show the labelled sample journey. The face is an AI-generated portrait, never a real person, and its looks are real YouCam results.
 
 ## The problem, specifically
 
@@ -55,11 +55,11 @@ Hair is the other half. Wig specialists advise choosing a wig **before** hair lo
 
 The **Ask** tab is an agent that answers questions about skin, products, the care team and looks, and plans try-ons.
 
-- **Facts come from tools, not the model.** The model (Claude through KIE's Anthropic-compatible API, falling back to GPT-6 Luna through KIE when Claude is unavailable) picks from 10 tools: `skin_status`, `find_products` (the shelf ranking), `check_ingredients` (any pasted INCI list), `care_team_questions`, `red_flags`, `wig_ideas` (YouCam hairstyle templates with the face-shape tip and natural hair colour), `brow_plan` (closest pattern and brow pencil), `unit_costs` (live prices through YouCam's MCP `Get-Feature-Cost`), `propose_look` and `remember`. See `server/agent.js`.
+- **Facts come from tools, not the model.** The model (Claude through KIE's Anthropic-compatible API, falling back to GPT-6 Luna through KIE when Claude is unavailable, and to Still Me's rules alone if both fail) picks from 10 tools: `skin_status`, `find_products` (the shelf ranking), `check_ingredients` (any pasted INCI list), `care_team_questions`, `red_flags`, `wig_ideas` (YouCam hairstyle templates with the face-shape tip and natural hair colour), `brow_plan` (closest pattern and brow pencil), `unit_costs` (live prices through YouCam's MCP `Get-Feature-Cost`), `propose_look` and `remember`. See `server/agent.js`.
 - **Paid work needs a tap.** `propose_look` turns a request such as "my daughter's wedding is in week 6" into a plan card (wig in their own colour, brows, lashes, lips, a regrowth preview) with its unit cost. Nothing runs until the person taps **Run**.
 - **It learns, on the device.** Looks the person keeps or rejects, and preferences they state ("short hair is easier for me"), are stored in their browser and sent back as context, so later plans avoid a rejected bob and favour short styles. The person can see and forget each remembered note.
-- **Safety first.** Red-flag symptoms (fever, swelling of the face or throat, blistering, signs of infection) are matched by rules before the model answers, and the reply opens with "contact your care team now". Replies that make a medical claim ("will heal", a dose, "stop your treatment") get a fixed caution line. The agent never diagnoses and never assumes gender.
-- **Data.** Each question sends a short summary of the journal (treatment and week, latest scores and notes, print colours and shapes, saved products, looks and preferences), never photos, after a one-time notice. `PER_IP_DAILY_CHATS` and `DAILY_CHAT_BUDGET` cap use on a public demo.
+- **Safety first.** Red-flag symptoms (fever, swelling of the face or throat, blistering, signs of infection) are matched by rules in `core/safety.js`, in the browser as well as the server, so the warning shows at once, even offline or if the model fails. A reply telling someone to stop, skip or hold treatment, take a dose, or not call their team is replaced outright with a line to ask the care team first; softer claims get a caution line. Tool calls are capped per turn. The agent never diagnoses and never assumes gender.
+- **Data.** Each question sends a short summary of the journal (treatment and week, latest scores and notes, print colours and shapes, saved products, looks and preferences), never photos or a name, after a one-time notice. `PER_IP_DAILY_CHATS` and `DAILY_CHAT_BUDGET` cap use on a public demo.
 
 ## YouCam APIs used
 
@@ -125,6 +125,16 @@ core/ rule engines run in the browser:
   - On 720p webcams the crop widens just enough to keep SD's 480 px minimum.
   - A live light check, and a ghost of the baseline photo so weekly photos line up.
 
+## Motion
+
+Three tools, each where it fits, all split so the app screens stay light (about 134 kB of JavaScript after compression, against about 274 kB before).
+
+- **three.js** (welcome page only): the portrait gathers from thousands of points, face first and hair last, then the crisp photo takes over and the scene is thrown away, so nothing keeps running (`web/src/lib/portrait3d.js`). If WebGL is slow or missing, the photo simply shows.
+- **GSAP and ScrollTrigger** (welcome page only): the headline rises word by word, and scroll drives the story of real app screens, with one phone staying in view on wide screens (`web/src/lib/motion.js`). Nothing is pinned or hijacked.
+- **Motion** (the app): screen changes, rows that open in place, chat messages, plan cards and try-on results (`LazyMotion` with the `m` component, in `web/src/App.jsx`, `components.jsx` and `screens/Ask.jsx`).
+
+People on treatment can have nausea or blurred vision, so warnings never move, nothing bounces, and the soft background glides when a screen opens, then holds still (plain WebGL, `web/src/lib/ambient.js`). The device's reduced-motion setting and the Less motion switch in Settings both stop all of it.
+
 ## Privacy and safety
 
 - Photos, scores, looks and the saved list live in the browser's IndexedDB, which Still Me asks the browser to keep persistent. Journals can be downloaded and restored from Settings. The server is a stateless proxy, and the YouCam key never reaches the browser.
@@ -159,22 +169,20 @@ Without `YOUCAM_API_KEY` the app runs in **demo mode**: everything works, but re
 | `npm test` | Unit tests: YouCam client against a fake API, rule engines, colour maths, HTTP API |
 | `npm run smoke -- face.jpg [portrait.jpg] [hat.jpg]` | Live check of every YouCam call with your key (spends units). With `RECORD_DIR=test/fixtures`, it saves redacted responses for `test/live-shape.test.js`. |
 
-Deploy: `render.yaml` is a one-click Render blueprint. Any Node host works: build with `npm run build` and start with `npm start`, with `YOUCAM_API_KEY`, `APP_ACCESS_CODE` and `TRUST_PROXY` set. Set `KIE_API_KEY` for the companion (optional `AGENT_MODEL`, default `claude-sonnet-5-5`); without it, Ask answers from the rules alone, labelled as demo.
+Deploy: `render.yaml` is a one-click Render blueprint. Any Node host works: build with `npm run build` and start with `npm start`, with `YOUCAM_API_KEY`, `APP_ACCESS_CODE` and `TRUST_PROXY` set. Set `KIE_API_KEY` for the companion (optional `AGENT_MODEL`, default `claude-sonnet-5-5`); without it, Ask answers from the rules alone.
 
 ## Testing instructions for judges
 
 1. Open https://ahead-skinai.onrender.com with the access code from the submission (`/?code=...`). It runs on a free instance that sleeps when idle, so the first load can take about a minute. Locally, run `npm run dev`.
-2. Tap **Explore a sample journey first**. On **Today**, the road-ahead timeline shows week 3 of an EGFR-inhibitor + chemotherapy course.
+2. Tap **See a sample journey**. On **Today**, the road-ahead timeline shows week 3 of an EGFR-inhibitor + chemotherapy course.
 3. Open **Details** on the red note: the falling "Clear skin" score is read as the EGFR rash, with care-team guidance. Then open **Shelf**: benzoyl peroxide, salicylic acid and fragranced products sit under *Not right now* with reasons, and the acne gel Sam saved in week 1 is flagged "Check again".
-4. **Hair & brows** (the sample print has no photo):
-   - Tap **Retake** to make your own print.
-   - Try a wig style, or add any shop's wig photo.
-   - Try a hat photo.
-   - Preview your brows, then open the fitting sheet.
+4. **Looks** opens on Sam's real YouCam results (the face is AI-generated). Each row opens in place, and the sample portrait is ready to use:
+   - Open **Wigs** and try a style, then **In my own colour**, or add any shop's wig photo.
+   - Open **Brows, lashes and lips** and preview them, then open the fitting sheet from **Your Hair & Brow Print**.
+   - **Earrings**, **Hats and caps**, **How your hair might grow back** and **Hair watch** work the same way.
 5. Run a real check-in: **Skin → Start a check-in**, use the camera or upload a selfie, frame it in the oval, then **Analyse my skin**. It starts its own trend line and is never compared with the sample. Tap a score to see YouCam's detection mask for it.
 6. **Today → Open summary** for the printable care-team page.
 7. **Ask** (the companion): try "My face feels tight and has spots. What can I use?", then "Plan a look for a family wedding in a few weeks." Tap **Run** on the plan card (about 4 units), then **Keep** or **Not for me**, and ask again: the next plan uses what you chose.
-8. **Hair & brows**, new with the MCP features: **Hair watch** (a photo of the top of your head), **In my own colour** on a wig result, **Earrings**, and **How your hair might grow back**.
 
 ## Clinical grounding
 
