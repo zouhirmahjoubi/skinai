@@ -107,6 +107,10 @@ export function TabBar({ path }) {
   const at = TABS.findIndex(([to]) => current(to));
   return (
     <div className="tabbar" ref={ref}>
+      <a className="wordmark rail-mark" href="#/today">
+        <Logo />
+        Still Me
+      </a>
       <nav aria-label="Main">
         <span className="tab-pill" aria-hidden="true" hidden={at < 0} style={{ '--i': Math.max(at, 0) }} />
         {TABS.map(([to, icon, label]) => (
