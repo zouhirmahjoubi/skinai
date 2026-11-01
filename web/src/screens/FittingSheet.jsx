@@ -55,7 +55,7 @@ export default function FittingSheet() {
           <div className="gallery">
             {hairLooks.map((l) => (
               <figure key={l.id}>
-                <img src={l.image} alt={l.label} />
+                <img src={l.image} alt={l.label} loading="lazy" />
                 <figcaption>{l.label}</figcaption>
               </figure>
             ))}
