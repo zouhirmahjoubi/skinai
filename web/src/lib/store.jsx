@@ -140,8 +140,8 @@ export function StoreProvider({ children }) {
       (data.list == null || (Array.isArray(data.list) && data.list.every((id) => typeof id === 'string')));
     if (!valid) throw new Error('Not a Still Me journal file');
     const list = data.list || [];
-    await db.replaceJournal({ profile: data.profile, print: data.print || null, list, checkins: data.checkins, looks });
-    for (const key of JOURNAL_EXTRAS) if (data[key] !== undefined) await db.set(key, data[key]);
+    const extras = Object.fromEntries(JOURNAL_EXTRAS.map((key) => [key, data[key]]));
+    await db.replaceJournal({ profile: data.profile, print: data.print || null, list, checkins: data.checkins, looks, extras });
     clearAskSession();
     setProfile(data.profile);
     setPrint(data.print || null);

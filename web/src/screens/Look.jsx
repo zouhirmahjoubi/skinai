@@ -164,9 +164,12 @@ function PrintSection({ retake, setRetake }) {
     setError(null);
     try {
       setStep(0);
+      const started = db.generation();
       const { fileId } = await api.upload(shot.blob);
       setStep(1);
       const result = await api.print(fileId);
+      // Deleted or replaced while this ran: the photo must not come back.
+      if (db.generation() !== started) return;
       // If one half couldn't be read, keep that half from an earlier real print rather than losing it.
       const prev = print && !print.sample ? print : null;
       const colors = result.colors || prev?.colors || null;
@@ -559,7 +562,7 @@ function BrowSection({ onNeedPrint }) {
   // Which chip is chosen, not its hex: a pencil can match the measured colour exactly.
   const [colorChoice, setColorChoice] = useState(myBrows ? 'mine' : 'sb-dark-brown');
   const chosenPencil = colorChoice === 'mine' ? null : BROW_PRODUCTS.find((p) => p.id === colorChoice);
-  const color = colorChoice === 'mine' ? myBrows : chosenPencil?.hex || '#3b2a20';
+  const color = colorChoice === 'mine' ? myBrows : chosenPencil?.hex || '#3b2a20'; // ds-allow-hardcode: a brow shade sent to YouCam, not a UI colour
   const [intensity, setIntensity] = useState(55);
   // Optional extras drawn in the same 1-unit makeup-vto call.
   const [lashStyle, setLashStyle] = useState(null);
@@ -832,8 +835,10 @@ function HairCheckSection() {
     setError(null);
     setBusy(true);
     try {
+      const started = db.generation();
       const { fileId } = await api.upload(shot.blob);
       const out = await api.hairDensity(fileId);
+      if (db.generation() !== started) return;
       const phase = treatmentPhase(profile?.startDate);
       const entry = { id: newId(), date: today(), week: phase.phase === 'during' ? phase.week : 0, score: out.score, term: out.term, demo: Boolean(out.demo) };
       const next = [...checks, entry].slice(-30);

@@ -3,6 +3,7 @@
 const DB_NAME = 'ahead';
 const VERSION = 1;
 let dbPromise;
+let generation = 0;
 
 function open() {
   if (!dbPromise) {
@@ -40,11 +41,15 @@ export const db = {
   all: (store) => tx(store, 'readonly', (s) => s.getAll()),
   put: (store, value) => tx(store, 'readwrite', (s) => s.put(value)),
   remove: (store, id) => tx(store, 'readwrite', (s) => s.delete(id)),
+  /** Goes up when the journal is deleted or replaced, so slow work that began before can drop its result. */
+  generation: () => generation,
   async clearAll() {
+    generation += 1;
     for (const store of ['kv', 'checkins', 'looks']) await tx(store, 'readwrite', (s) => s.clear());
   },
-  /** Replaces the journal in one transaction, so a failed restore changes nothing. Saved try-on photos are kept. */
-  async replaceJournal({ profile, print, list, checkins, looks }) {
+  /** Replaces the journal in one transaction, so a failed restore changes nothing. An extra the file doesn't have is removed. */
+  async replaceJournal({ profile, print, list, checkins, looks, extras = {} }) {
+    generation += 1;
     const d = await open();
     return new Promise((resolve, reject) => {
       const t = d.transaction(['kv', 'checkins', 'looks'], 'readwrite');
@@ -57,6 +62,10 @@ export const db = {
         if (print) kv.put(print, 'print');
         else kv.delete('print');
         kv.put(list, 'list');
+        for (const [key, value] of Object.entries(extras)) {
+          if (value == null) kv.delete(key);
+          else kv.put(value, key);
+        }
         const cs = t.objectStore('checkins');
         cs.clear();
         for (const c of checkins) cs.put(c);

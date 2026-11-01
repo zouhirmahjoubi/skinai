@@ -8,6 +8,7 @@ import { StoreProvider } from './lib/store.jsx';
 import { applyPalette, getPalette } from './lib/palette.js';
 import { applyLessMotion } from './lib/reduced.js';
 import App from './App.jsx';
+import ErrorBoundary from './ErrorBoundary.jsx';
 
 // Apply the saved colour theme before the first paint, so it never flashes the default.
 applyPalette(getPalette());
@@ -22,11 +23,13 @@ if (!window.location.hash || window.location.hash === '#/') {
   link.href = '/portrait/portrait.webp';
   link.fetchPriority = 'high';
   document.head.append(link);
-  import('./screens/Landing.jsx');
+  import('./screens/Landing.jsx').catch(() => {}); // the screen itself reports a failure
 }
 
 createRoot(document.getElementById('root')).render(
-  <StoreProvider>
-    <App />
-  </StoreProvider>,
+  <ErrorBoundary>
+    <StoreProvider>
+      <App />
+    </StoreProvider>
+  </ErrorBoundary>,
 );

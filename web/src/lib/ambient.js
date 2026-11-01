@@ -5,6 +5,8 @@
 // someone on treatment feel sick. Colours come from the --paper and --ambient-*
 // tokens, so they follow the themes.
 
+import { reducedMotion } from './reduced.js';
+
 const GLIDE_MS = 2600;
 const RENDER_SCALE = 0.5; // it is all soft gradients, so half resolution costs nothing visible
 const GLIDE_SPEED = 12; // how far the hazes travel, in shader seconds per real second, at the start of a glide
@@ -75,11 +77,12 @@ function compile(gl, type, source) {
 }
 
 /**
- * Starts the background on `canvas`. With `still`, it draws one frame and never
- * glides. Returns a stop function, or null when WebGL is unavailable or slow,
- * in which case the CSS gradient underneath stays in place.
+ * Starts the background on `canvas`. With reduced motion or Less motion it holds
+ * still, checked at each glide so the Settings switch counts at once. Returns a
+ * stop function, or null when WebGL is unavailable or slow, in which case the CSS
+ * gradient underneath stays in place.
  */
-export function startAmbient(canvas, { still = false } = {}) {
+export function startAmbient(canvas) {
   const gl = canvas.getContext('webgl', { alpha: false, antialias: false, powerPreference: 'low-power', failIfMajorPerformanceCaveat: true });
   if (!gl) return null;
 
@@ -121,7 +124,7 @@ export function startAmbient(canvas, { still = false } = {}) {
   // A glide eases out to a stop, then nothing runs until the next screen opens.
   let raf = 0;
   const glide = () => {
-    if (still || raf || document.hidden) return;
+    if (reducedMotion() || raf || document.hidden) return;
     let last = performance.now();
     const t0 = last;
     const step = (now) => {

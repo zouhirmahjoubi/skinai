@@ -159,13 +159,18 @@ function responsesBody(text) {
   return done;
 }
 
+const PRICE_WAIT_MS = 5000;
+
 async function costsFor(features, kinds) {
   let live = {};
+  let timer;
   try {
-    live = (await features?.unitCosts?.()) || {};
+    // A slow price list mustn't hold up a plan: the usual prices will do.
+    live = (await Promise.race([features?.unitCosts?.(), new Promise((done) => { timer = setTimeout(done, PRICE_WAIT_MS); })])) || {};
   } catch {
     live = {};
   }
+  clearTimeout(timer);
   const out = {};
   for (const k of kinds) {
     const paths = STEP_PATH[k] || [];
@@ -176,6 +181,13 @@ async function costsFor(features, kinds) {
 }
 
 const newOutcome = () => ({ plan: null, remember: [], tools: [] });
+
+// Plan titles, reasons and remembered notes reach the screen too, so they get the
+// same check as a reply. Whatever it flags is dropped.
+const vetted = (text) => {
+  const out = lintReply(String(text ?? ''));
+  return out.flagged ? '' : out.text;
+};
 
 // Each tool returns plain JSON; propose_look and remember also leave something
 // for the app (the plan card, the preference to store). Both agents use these.
@@ -248,17 +260,17 @@ function toolsFor({ features, ctx, out }) {
           lips: s.kind === 'brows' && (s.lips === 'mine' || LIP_SHADES.some((l) => l.id === s.lips)) ? s.lips : undefined,
           underEye: s.kind === 'brows' ? Boolean(s.under_eye) : undefined,
           shade: s.kind === 'regrowth' ? (Object.hasOwn(HAIR_SHADES, String(s.shade)) ? s.shade : 'Grey/White') : undefined,
-          why: String(s.why || '').slice(0, 160),
+          why: vetted(s.why).slice(0, 160),
         };
       }).filter((s) => s.kind !== 'wig' || s.templateId);
       if (!clean.length) return { error: 'No runnable steps. A wig step needs a template_id from wig_ideas.' };
       const costs = await costsFor(features, [...new Set(clean.map((s) => s.kind))]);
       for (const s of clean) s.units = costs[s.kind].units + (s.kind === 'wig' && s.recolour ? STEP_COST.hair_color : 0);
-      out.plan = { title: String(title).slice(0, 80), steps: clean, units: clean.reduce((n, s) => n + s.units, 0), livePrices: Object.values(costs).every((c) => c.live) };
+      out.plan = { title: vetted(title).slice(0, 80) || 'Your look', steps: clean, units: clean.reduce((n, s) => n + s.units, 0), livePrices: Object.values(costs).every((c) => c.live) };
       return { shown_to_person: true, total_units: out.plan.units, steps: clean.length, dropped: wanted.length - clean.length };
     },
     remember: ({ note = '' }) => {
-      const n = String(note).trim().slice(0, 140);
+      const n = vetted(note).slice(0, 140);
       if (n) out.remember.push(n);
       return { saved: Boolean(n) };
     },

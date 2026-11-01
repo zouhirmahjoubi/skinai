@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore, go } from '../lib/store.jsx';
 import { api } from '../lib/api.js';
-import { newId, today } from '../lib/db.js';
+import { db, newId, today } from '../lib/db.js';
 import { displayCopy } from '../lib/image.js';
 import { TopBar, Capture, Steps, ErrorBox } from '../components.jsx';
 import { lightingCheck } from '../../../core/trends.js';
@@ -36,6 +36,7 @@ export default function CheckIn() {
 
   async function analyse() {
     if (step >= 0) return;
+    const started = db.generation();
     setError(null);
     try {
       setStep(0);
@@ -45,6 +46,8 @@ export default function CheckIn() {
       setStep(2);
       // YouCam got the full photo above; the journal keeps a lighter copy.
       const photo = await displayCopy(shot.dataUrl).catch(() => shot.dataUrl);
+      // Deleted or replaced while this ran: the photo must not come back.
+      if (db.generation() !== started) return;
       const checkin = {
         id: newId(),
         date: today(),

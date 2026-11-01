@@ -11,8 +11,8 @@ const straighten = (text) => String(text ?? '').replace(/[‘’ʼ＇]/g, "'");
 // and in the same order: answered with "contact your care team now" before
 // anything else, whatever the model says. When unsure these fire.
 const URGENT = [
-  /\bfever|\btemp(?:erature)?s?\b|\bchills\b|\bshiver|\b(?:3[89]|4[01])(?:[.,]\d+)?\s*(?:°\s*c?|deg(?:ree)?s?\b(?:\s*c\b)?|c\b)|\b3[89][.,]\d\b|\b10[0-5](?:[.,]\d+)?\s*(?:°\s*f?|deg(?:ree)?s?\b(?:\s*f\b)?|f\b)|\b10[0-5][.,]\d\b/i,
-  /\b(?:swollen|swelling|swell(?:s|ed)?|puffy|puffed)\b.*\b(?:face|lips?|tongue|throat|mouth)\b|\b(?:face|lips?|tongue|throat|mouth)\b.*\b(?:swollen|swelling|swell(?:s|ed)?|puffy|puffed)\b|\bhives\b|\bthroat\b.*\b(?:clos(?:e|es|ed|ing)|tight\w*)\b|\b(?:can't|cant|can ?not|couldn't|could not|unable to|hard to|difficult to|struggl\w+ to|struggl\w+ for|gasp\w* for|trouble|difficulty|problems?)\s+(?:\w+\s+)?breath|\bbreathing\b.*\b(?:hard|difficult|trouble|problems?)\b|\bshort(?:ness)? of breath\b|\bout of breath\b|\bbreathless|\bwheez/i,
+  /\bfever|\bthermometer\b|\bburning up\b|\btemp(?:erature)?s?\b|\bchills\b|\bshiver|\b(?:3[89]|4[01])(?:[.,]\d+)?\s*(?:°\s*c?|deg(?:ree)?s?\b(?:\s*c\b)?|c\b)|\b3[89][.,]\d\b|\b10[0-5](?:[.,]\d+)?\s*(?:°\s*f?|deg(?:ree)?s?\b(?:\s*f\b)?|f\b)|\b10[0-5][.,]\d\b/i,
+  /\b(?:swollen|swelling|swell(?:s|ed)?|puffy|puffed)\b.*\b(?:face|lips?|tongue|throat|mouth)\b|\b(?:face|lips?|tongue|throat|mouth)\b.*\b(?:swollen|swelling|swell(?:s|ed)?|puffy|puffed)\b|\bhives\b|\bthroat\b.*\b(?:clos(?:e|es|ed|ing)|tight\w*)\b|\b(?:can't|cant|can ?not|couldn't|could not|can (?:barely|hardly)|unable to|hard(?:er)?(?: for me)? to|hard time|difficult(?: for me)? to|struggl\w+ (?:to|for|with)|gasp\w* for|trouble|difficulty|problems?)\s+(?:\w+\s+){0,2}breath|\b(?:gasp\w*|struggl\w*) for air\b|\bnot (?:getting )?enough air\b|\btight(?:ness)?\b[^.?!]{0,20}\bchest\b|\bchest\b[^.?!]{0,20}\btight|\bbreathing\b.*\b(?:hard|difficult|trouble|problems?)\b|\bshort(?:ness)? of breath\b|\bout of breath\b|\bbreathless|\bwheez/i,
   /\bblister|\bpeel(?:s|ing)?\s+(?:badly|off|away|a lot|in (?:sheets|strips|layers))|\bweep(?:s|ing)?\b|\booz(?:e|es|ing)\b|\bopen (?:sore|wound)s?\b|\b(?:skin|rash)\b[^.?!]{0,40}\b(?:open(?:s|ed|ing)? up|bleed(?:s|ing)?|split(?:s|ting)? open|cracked open)\b/i,
   /\b(?:spreading|spreads) (?:fast|quickly)|\bpainful rash\b|\brash\b.*\b(?:all over|whole body|large area|spread\w*|hurts?|painful|burn(?:s|ing)?)\b|\bspread\w*\b.*\brash\b/i,
   /\bmouth (?:sores?|ulcers?)\b|\b(?:sores?|ulcers?)\b[^.?!]*\bmouth\b|\bmouth\b[^.?!]*\bsores?\b|\b(?:red|sore) eyes?\b|\beyes?\s+(?:are|is|look|looks|feel|feels|got|gone|turned|went)\s+(?:\w+\s+)?(?:red|sore)\b/i,
@@ -30,17 +30,27 @@ const NOT_A_REPORT = [
   new RegExp(String.raw`\b(?:no|without|never had|free of|(?:do|does|did) not (?:have|get)|(?:don't|doesn't|didn't) (?:have|get)|(?:haven't|hasn't) (?:got|had)|not (?:got|had|having))\s+${SYMPTOM_LEAD}${SYMPTOM}\b(?:\s+(?:or|nor)\s+${SYMPTOM_LEAD}${SYMPTOM}\b)*`, 'gi'),
   /\b(?:not|isn't|aren't|wasn't|weren't|hasn't|haven't)\s+(?:been\s+)?(?:swollen|swelling|infected|blistering|blistered|weeping|oozing|spreading)\b/gi,
   new RegExp(String.raw`\b(?:avoid(?:s|ing)?|prevent(?:s|ing)?|(?:reduce|lower)(?:s|ing)? (?:the |my )?risk of|protect(?:s|ing)? (?:me |myself |my skin )?(?:from|against))\s+(?:getting\s+|developing\s+|having\s+|catching\s+)?${SYMPTOM_LEAD}${SYMPTOM}\b(?![^.?!]*\b(?:worse|spread\w*|burst\w*|pop\w*|again|coming back)\b)`, 'gi'),
-  // The temperature of a thing, or a normal reading, is not a fever.
-  /\b(?:room|water|bath|shower|storage|fridge|freezer|oven|ambient|air|outdoor|outside|cool|cold|warm|wash(?:ing)?|normal)\s+temp(?:erature)?s?\b/gi,
+  // A normal reading is not a fever.
+  /\bnormal\s+temp(?:erature)?s?\b/gi,
+  /\btemp(?:erature)?\s+(?:is|was|has been|stayed)\s+(?:normal|fine|ok|okay|stable)\b/gi,
+];
+
+// These words undo a calm phrase: "I hope I don't have a fever", "no fever before
+// today", "normal this morning but now it's 39". The whole message then counts.
+const STILL_WORRIED = /\b(?:hop(?:e|ing)|afraid|worr(?:y|ied)|scared|what if|not sure|unsure|until|yesterday|this morning|last night|earlier|but now|now it|above|higher|hotter)\b|\bbefore\s+(?:today|now|this|tonight|yesterday|last)\b|\bbefore[.?!]*\s*$/i;
+
+// The temperature of a thing is not a fever, whatever else the message says.
+const NOT_A_READING = [
+  /\b(?:room|water|bath|shower|storage|fridge|freezer|oven|ambient|air|outdoor|outside|cool|cold|warm|wash(?:ing)?)\s+temp(?:erature)?s?\b/gi,
   /\btemp(?:erature)?s?\s+(?:of|in|for)\s+(?:the\s+|my\s+|this\s+)?(?:water|room|bath|shower|fridge)\b/gi,
   /\b(?:what|which)\s+temp(?:erature)?s?\s+(?:should|do|can|to)\s+(?:i\s+)?(?:store|keep|wash)\b/gi,
-  /\btemp(?:erature)?\s+(?:is|was|has been|stayed)\s+(?:normal|fine|ok|okay|stable)\b/gi,
   /\bhay fever\b/gi,
 ];
 
 /** The red flags a message mentions (from core/treatments RED_FLAGS). */
 export function urgentFlags(text = '') {
-  const said = NOT_A_REPORT.reduce((t, re) => t.replace(re, ' '), straighten(text));
+  const plain = NOT_A_READING.reduce((t, re) => t.replace(re, ' '), straighten(text));
+  const said = STILL_WORRIED.test(plain) ? plain : NOT_A_REPORT.reduce((t, re) => t.replace(re, ' '), plain);
   return URGENT.map((re, i) => (re.test(said) ? RED_FLAGS[i] : null)).filter(Boolean);
 }
 
@@ -48,9 +58,9 @@ export function urgentFlags(text = '') {
 // treatment itself. "your" but not "my", so a question for the care team such
 // as "Should I hold my dose?" passes. The small words are a closed list, so
 // "skip the scrub on treatment days" and "reduce treatment side effects" pass too.
-const CHANGE = String.raw`(?:stop(?:s|ping)?|skip(?:s|ping)?|pause[sd]?|pausing|hold(?:s|ing)?|halt(?:s|ing)?|quit(?:s|ting)?|discontinu(?:e|ing)|drop(?:s|ping)?|delay(?:s|ing)?|postpon(?:e|ing)|defer(?:s|ring)?|miss(?:es|ing)?|cut(?:ting)?(?: back| down)?|lower(?:ing)?|reduc(?:e|ing)|decreas(?:e|ing)|increas(?:e|ing)|doubl(?:e|ing)|halv(?:e|ing)|chang(?:e|ing)|adjust(?:ing)?|com(?:e|ing) off|go(?:ing)? off|get(?:ting)? off|tak(?:e|ing) a break from|tak(?:e|ing) time off)`;
+const CHANGE = String.raw`(?:(?:don't|shouldn't|not(?: to)?) take|cancel(?:s|ling)?|reschedul(?:e|es|ing)|put(?:ting)? off|avoid(?:ing)?|stop(?:s|ping)?|skip(?:s|ping)?|pause[sd]?|pausing|hold(?:s|ing)?|halt(?:s|ing)?|quit(?:s|ting)?|discontinu(?:e|ing)|drop(?:s|ping)?|delay(?:s|ing)?|postpon(?:e|ing)|defer(?:s|ring)?|miss(?:es|ing)?|cut(?:ting)?(?: back| down)?|lower(?:ing)?|reduc(?:e|ing)|decreas(?:e|ing)|increas(?:e|ing)|doubl(?:e|ing)|halv(?:e|ing)|chang(?:e|ing)|adjust(?:ing)?|com(?:e|ing) off|go(?:ing)? off|get(?:ting)? off|tak(?:e|ing) a break from|tak(?:e|ing) time off)`;
 const SMALL_WORDS = String.raw`(?:(?:off on|back on|down on|off|taking|using|having|your|the|this|that|a|an|one|next|today's|tomorrow's|tonight's|this week's|next week's|upcoming|current|remaining|scheduled|planned|weekly|daily|morning|evening|oral|targeted|hormone|cancer)\s+)*`;
-const TREATMENT = String.raw`(?:treatments?|therapy|therapies|chemo(?:therapy)?|radio(?:therapy)?|radiation|immunotherapy|medications?|medicines?|meds?|drugs?|prescriptions?|tablets?|pills?|capsules?|injections?|infusions?|doses?|dosages?|cycles?|sessions?|regimen|steroids?|tamoxifen|letrozole|anastrozole|exemestane|fulvestrant|\w+(?:tinib|ciclib|parib|degib|zomib|lisib|mab|platin|taxel|rubicin|fosfamide|citabine|trexate|tecan|lutamide))`;
+const TREATMENT = String.raw`(?:treatments?|therapy|therapies|chemo(?:therapy)?|radio(?:therapy)?|radiation|immunotherapy|medications?|medicines?|meds?|drugs?|prescriptions?|tablets?|pills?|capsules?|injections?|infusions?|doses?|dosages?|cycles?|sessions?|regimen|steroids?|prednisone|prednisolone|dexamethasone|decadron|antibiotics?|doxycycline|minocycline|tarceva|iressa|gilotrif|tagrisso|keytruda|opdivo|yervoy|tecentriq|imfinzi|herceptin|perjeta|taxol|taxotere|abraxane|adriamycin|cytoxan|gemzar|xeloda|ibrance|kisqali|verzenio|lynparza|arimidex|femara|aromasin|tamoxifen|letrozole|anastrozole|exemestane|fulvestrant|\w+(?:tinib|ciclib|parib|degib|zomib|lisib|mab|platin|taxel|rubicin|fosfamide|citabine|trexate|tecan|lutamide))`;
 const NOT_THE_TREATMENT = String.raw`(?![-\s]*(?:related|side|rash|reactions?|effects?|days?|area|field)\b)`;
 const PAIN_RELIEF = String.raw`(?:ibuprofen|paracetamol|acetaminophen|tylenol|advil|motrin|nurofen|panadol|aspirin|naproxen|aleve|benadryl)`;
 const NO_NEED = String.raw`(?:no need|not necessary|unnecessary|needn't|need not|don't need|do not need|don't have|do not have|don't bother|not worth|no reason)`;

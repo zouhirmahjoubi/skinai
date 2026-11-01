@@ -34,6 +34,10 @@ export function landingStory(root) {
   const mm = gsap.matchMedia(root);
   // matchMedia only runs when at least one query matches, so "always" guarantees a run.
   mm.add({ always: 'all', wide: '(min-width: 900px)' }, ({ conditions }) => {
+    // The wide page shows these screens nowhere else, so they change with the scroll whatever the motion setting.
+    if (conditions.wide) {
+      chapters.forEach((chapter, i) => ScrollTrigger.create({ trigger: chapter, start: 'top 55%', end: 'bottom 55%', onToggle: (self) => self.isActive && show(i) }));
+    }
     if (reducedMotion()) return;
 
     // Arrival: words rise behind their masks, everything else follows within 0.8 s.
@@ -49,11 +53,9 @@ export function landingStory(root) {
     rise(q('.story-head > *'), q('.story-head')[0]);
     rise(q('.final > *'), q('.final')[0]);
 
-    chapters.forEach((chapter, i) => {
+    chapters.forEach((chapter) => {
       rise(chapter.querySelectorAll('.chapter-text > *'), chapter);
-      if (conditions.wide) {
-        ScrollTrigger.create({ trigger: chapter, start: 'top 55%', end: 'bottom 55%', onToggle: (self) => self.isActive && show(i) });
-      } else {
+      if (!conditions.wide) {
         const shot = chapter.querySelector('.chapter-shot');
         gsap.fromTo(shot, { y: 36, opacity: 0, scale: 0.97 }, { y: 0, opacity: 1, scale: 1, duration: 0.8, ease: 'expo.out', ...DONE, scrollTrigger: { trigger: shot, start: 'top 90%', once: true } });
       }

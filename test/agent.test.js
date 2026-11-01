@@ -112,6 +112,30 @@ test('a route that fails mid-turn also ends in the rules, keeping what the tools
   assert.equal(out.tools[0], 'remember');
 });
 
+test('plan words and remembered notes get the same check as a reply', async () => {
+  const { fetchImpl } = fakeClaude([
+    [
+      toolUse('propose_look', { title: 'Skip your next cycle', steps: [{ kind: 'brows', why: 'Hold your next dose first' }] }),
+      toolUse('remember', { note: 'Stop your tamoxifen' }),
+      toolUse('remember', { note: 'Prefers short styles' }),
+    ],
+    says('Here is a plan.'),
+  ]);
+  const out = await createAgent({ apiKey: 'k', features: createDemoFeatures(), fetchImpl }).respond({ messages: asked('Plan a look') });
+  assert.equal(out.plan.title, 'Your look');
+  assert.equal(out.plan.steps[0].why, '');
+  assert.deepEqual(out.remember, ['Prefers short styles']);
+});
+
+test('a price list that hangs does not hold up a plan', async () => {
+  const features = { ...createDemoFeatures(), unitCosts: () => new Promise(() => {}) };
+  const { fetchImpl } = fakeClaude([[toolUse('propose_look', { title: 'Look', steps: [{ kind: 'brows', why: 'x' }] })], says('Done.')]);
+  const started = Date.now();
+  const out = await createAgent({ apiKey: 'k', features, fetchImpl }).respond({ messages: asked('Plan a look') });
+  assert.ok(Date.now() - started < 8000);
+  assert.equal(out.plan.livePrices, false);
+});
+
 test('a proposed look becomes a plan with unit costs, and nothing runs', async () => {
   const { fetchImpl } = fakeClaude([
     [toolUse('propose_look', { title: 'Wedding', steps: [{ kind: 'wig', template_id: 'demo_pixie', recolour: true, why: 'Short and easy' }, { kind: 'brows', pattern: 'NotAPattern', lips: 'mine', why: 'Your own brows' }, { kind: 'wig', why: 'no template' }] })],

@@ -108,10 +108,7 @@ export default function Ask() {
   const { profile, print, list, looks, server } = useStore();
   const { current, comparison, notes } = useInsights();
   const { prefs, setPrefs, feedback, setFeedback, consent, setConsent, photos } = useAskData();
-  const { messages } = useAskSession();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
-  const lastQuestion = useRef(null);
+  const { messages, pending: busy, error, lastQuestion } = useAskSession();
   const endRef = useRef(null);
 
   // What the agent's tools read: a summary of the journal, no photos and no name.
@@ -139,25 +136,39 @@ export default function Ask() {
     if (messages.length) endRef.current?.scrollIntoView({ block: 'end', behavior: reducedMotion() ? 'auto' : 'smooth' });
   }, [messages.length, busy]);
 
+  // A question can finish while the person is away, so what it remembered is read again.
+  useEffect(() => {
+    db.get('prefs').then((p) => setPrefs(Array.isArray(p) ? p : [])).catch(() => {});
+  }, [messages.length, setPrefs]);
+
   async function ask(q, { repeat = false } = {}) {
-    if (busy) return;
-    setError(null);
-    lastQuestion.current = q;
-    if (!repeat) updateAsk((s) => s.messages.push({ id: newId(), role: 'user', content: q, urgent: urgentFlags(q) }));
-    setBusy(true);
+    const session = askSession();
+    if (session.pending) return;
+    // It carries on if the person leaves Ask, but an answer that returns after the
+    // journal was deleted or replaced is dropped, along with anything it remembered.
+    const gone = () => askSession() !== session;
+    updateAsk((s) => {
+      s.pending = true;
+      s.error = null;
+      s.lastQuestion = q;
+      if (!repeat) s.messages.push({ id: newId(), role: 'user', content: q, urgent: urgentFlags(q) });
+    });
     try {
-      const history = askSession().messages.slice(-HISTORY).map(({ role, content }) => ({ role, content }));
+      const history = session.messages.slice(-HISTORY).map(({ role, content }) => ({ role, content }));
       const out = await api.agent(history, context);
+      if (gone()) return;
       if (out.remember?.length) {
-        const next = [...new Set([...prefs, ...out.remember])].slice(-12);
-        setPrefs(next);
-        await db.set('prefs', next);
+        const saved = await db.get('prefs');
+        if (gone()) return;
+        await db.set('prefs', [...new Set([...(Array.isArray(saved) ? saved : []), ...out.remember])].slice(-12));
       }
-      updateAsk((s) => s.messages.push({ id: newId(), role: 'assistant', content: out.reply, plan: out.plan, remembered: out.remember, rulesOnly: out.rulesOnly }));
+      updateAsk((s) => {
+        s.pending = false;
+        s.messages.push({ id: newId(), role: 'assistant', content: out.reply, plan: out.plan, remembered: out.remember, rulesOnly: out.rulesOnly });
+      });
     } catch (err) {
-      setError(err);
+      if (!gone()) updateAsk((s) => { s.pending = false; s.error = err; });
     }
-    setBusy(false);
   }
 
   async function forget(note) {
@@ -225,7 +236,7 @@ export default function Ask() {
         </ol>
       )}
       <div ref={endRef} className="chat-end" />
-      <ErrorBox error={error} onRetry={error && lastQuestion.current ? () => ask(lastQuestion.current, { repeat: true }) : undefined} />
+      <ErrorBox error={error} onRetry={error && lastQuestion ? () => ask(lastQuestion, { repeat: true }) : undefined} />
 
       <AskForm busy={busy} onSend={ask} />
 
@@ -248,10 +259,13 @@ export default function Ask() {
 }
 
 // Keeps going if the person leaves Ask: results land in the session, and paid
-// work already done is never thrown away or repeated.
+// work already done is never thrown away or repeated. It stops if the journal is
+// deleted or replaced, so no more units are spent on a chat that has gone.
 async function runPlan(id, plan, photos, print) {
-  const state = () => askSession().plans[id];
-  const set = (patch) => updateAsk((s) => { s.plans[id] = { ...s.plans[id], ...patch }; });
+  const session = askSession();
+  const gone = () => askSession() !== session;
+  const state = () => session.plans[id];
+  const set = (patch) => { if (!gone()) updateAsk((s) => { s.plans[id] = { ...s.plans[id], ...patch }; }); };
   const me = photos.portrait && { key: `portrait:${photos.portrait.id}`, dataUrl: photos.portrait.dataUrl };
   const face = photos.browPhoto ? { key: `brow:${photos.browPhoto.id}`, dataUrl: photos.browPhoto.dataUrl } : print?.photo ? { key: `print:${print.date}`, dataUrl: print.photo } : null;
   const c = print?.colors || {};
@@ -289,6 +303,7 @@ async function runPlan(id, plan, photos, print) {
 
   set({ status: 'running', errors: {} });
   for (let i = 0; i < plan.steps.length; i++) {
+    if (gone()) return;
     const done = state().results[i];
     if (done && (plan.steps[i].kind !== 'wig' || done.coloured || !plan.steps[i].recolour || !c.hair_color_name)) continue;
     set({ at: i });

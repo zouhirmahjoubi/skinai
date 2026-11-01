@@ -1,11 +1,12 @@
 // The Ask conversation for this visit, kept outside the screen so that leaving
-// Ask (to add a portrait, say) doesn't lose the chat or a plan that's running.
+// Ask (to add a portrait, say) doesn't lose the chat, a question still waiting
+// for its answer, or a plan that's running.
 // In memory only; it goes when the tab closes or the journal changes.
 
 import { useEffect, useReducer } from 'react';
 
 const listeners = new Set();
-const fresh = () => ({ messages: [], plans: {} });
+const fresh = () => ({ messages: [], plans: {}, pending: false, error: null, lastQuestion: null });
 let session = fresh();
 
 export const askSession = () => session;
