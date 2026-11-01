@@ -18,7 +18,7 @@ export default function Skin() {
       <TopBar mode={server.mode} />
       <div className="stack">
         <h1>Skin check-ins</h1>
-        <p className="muted">Once a week, or whenever something changes. Each photo is scored on eight signals by YouCam AI Skin Analysis and compared with your baseline.</p>
+        <p className="muted">Once a week, or whenever something changes. YouCam scores eight signals, and each photo is compared with your first.</p>
         <a className="btn primary block" href="#/checkin">
           <Icon name="camera" />
           Start a check-in

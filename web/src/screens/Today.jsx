@@ -62,12 +62,6 @@ export default function Today() {
         }
       />
 
-      {server.accessCodeRequired && !hasAccessCode() && (
-        <div className="banner info">
-          This demo needs an access code before it can analyse photos. <a href="#/settings">Enter the code</a>; it’s in the project’s testing instructions.
-        </div>
-      )}
-
       <section className="stack" aria-labelledby="where">
         <div>
           {profile.name && <p className="muted">Hi {profile.name}</p>}
@@ -170,6 +164,11 @@ export default function Today() {
         </a>
       </section>
 
+      {server.accessCodeRequired && !hasAccessCode() && (
+        <p className="fine">
+          This demo needs an access code before it can analyse photos. <a href="#/settings">Enter the code</a>; it’s in the project’s testing instructions.
+        </p>
+      )}
     </div>
   );
 }

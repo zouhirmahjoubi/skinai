@@ -63,8 +63,7 @@ export function landingStory(root) {
 
     if (conditions.wide) {
       const story = q('.story-body')[0];
-      gsap.fromTo(q('.story-rail-fill'), { scaleY: 0 }, { scaleY: 1, ease: 'none', transformOrigin: '50% 0%', scrollTrigger: { trigger: story, start: 'top 55%', end: 'bottom 55%', scrub: 0.4 } });
-      gsap.fromTo(q('.story-stage .phone'), { rotateY: -9, rotateX: 3 }, { rotateY: 9, rotateX: -2, ease: 'none', scrollTrigger: { trigger: story, start: 'top bottom', end: 'bottom top', scrub: 0.8 } });
+      gsap.fromTo(q('.story-stage .phone'), { rotateY: -6, rotateX: 2 }, { rotateY: 6, rotateX: -2, ease: 'none', scrollTrigger: { trigger: story, start: 'top bottom', end: 'bottom top', scrub: 0.8 } });
       gsap.to(q('.hero-figure'), { yPercent: -5, ease: 'none', scrollTrigger: { trigger: q('.hero')[0], start: 'top top', end: 'bottom top', scrub: true } });
     }
   });

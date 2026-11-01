@@ -209,7 +209,7 @@ export default function Ask() {
       <TopBar mode={server.mode} />
       <div className="stack">
         <h1>Ask Still Me</h1>
-        <p className="muted">Skin, products, questions for your care team, or a look to try on. Facts come from Still Me’s rules, not guesses.</p>
+        <p className="muted">Skin, products, questions for your care team, or a look to try on.</p>
       </div>
 
       {messages.length === 0 && (

@@ -152,13 +152,10 @@ export default function Landing({ onStart, onSample, demo, iosNote, returning = 
       <section className="story" aria-labelledby="story-title">
         <div className="story-head">
           <h2 id="story-title" className="display">
-            From the first selfie to <em>your next appointment</em>
+            From the first selfie to your next appointment
           </h2>
         </div>
         <div className="story-body">
-          <span className="story-rail" aria-hidden="true">
-            <span className="story-rail-fill" />
-          </span>
           <ol className="chapters">
             {CHAPTERS.map((c) => (
               <li key={c.id} className="chapter">
@@ -184,7 +181,7 @@ export default function Landing({ onStart, onSample, demo, iosNote, returning = 
 
       <section className="final" aria-labelledby="final-title">
         <h2 id="final-title" className="display">
-          Start with <em>one selfie.</em>
+          Start with one selfie.
         </h2>
         <div className="cta-row">
           {mainButton}

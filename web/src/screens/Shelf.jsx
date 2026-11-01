@@ -134,7 +134,7 @@ export default function Shelf() {
       <TopBar mode={server.mode} />
       <div className="stack">
         <h1>Your gentle shelf</h1>
-        <p className="muted">Every product’s ingredient list is checked against your treatments and your latest check-in. The shelf changes as your skin does.</p>
+        <p className="muted">Every ingredient list is checked against your treatment and your latest check-in.</p>
       </div>
 
       {/* The moment that matters most: something already on the list stopped being right. */}
