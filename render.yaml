@@ -1,7 +1,7 @@
 # One-click deploy on Render (https://render.com/docs/blueprint-spec).
 # Set YOUCAM_API_KEY, APP_ACCESS_CODE and KIE_API_KEY (the companion) in the Render dashboard.
-# The free plan sleeps when idle (first request ~1 min); use a paid plan or an
-# uptime ping on /api/status during judging.
+# The free plan sleeps when idle (first request ~1 min). The keep-awake GitHub
+# workflow pings /api/status during judging; disable it afterwards.
 services:
   - type: web
     name: ahead-skinai
