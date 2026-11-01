@@ -27,6 +27,7 @@ const CSP = [
   "media-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'none'",
+  "form-action 'self'",
   "frame-ancestors 'none'",
 ].join('; ');
 
@@ -38,8 +39,10 @@ const PORTRAIT_ERRORS = ['error_no_shoulder', 'error_hair_too_short', 'error_bal
 const SOURCE_ONLY = {
   wig: new Set([...PORTRAIT_ERRORS, 'error_insufficient_landmarks', 'error_face_pose', 'error_large_face_angle']),
   'head-covering': new Set([...PORTRAIT_ERRORS, 'error_no_face']),
+  // An earring photo has no face in it, so every face reading is about the portrait.
+  earring: new Set([...PORTRAIT_ERRORS, 'error_no_face', 'error_pose', 'error_face_pose', 'error_large_face_angle', 'error_face_parsing', 'error_insufficient_landmarks', 'error_face_not_forward_facing']),
 };
-const isSourceError = (code, what) => SOURCE_ONLY[what]?.has(code) || /^error_(src|face_position)_/.test(code);
+const isSourceError = (code, what) => SOURCE_ONLY[what]?.has(code) || /^error_(src|face_position|face_angle)_/.test(code);
 // Shared engine codes that can come from either photo (the official enum is the
 // same for every task), so the message names both instead of guessing.
 const EITHER_PHOTO = {
@@ -51,6 +54,16 @@ const EITHER_PHOTO = {
   error_nsfw_content_detected: (what) => `YouCam’s safety filter stopped this preview. Try again, or try a different ${what} photo.`,
 };
 
+// A density photo is taken with the head lowered, so the usual "look straight
+// at the camera" advice for pose and face-position errors would be wrong.
+const DENSITY_POSE_ERROR = /pose|face_angle|large_face|face_position|not_forward|tilt|src_face_out_of_bound|no_face|landmarks/;
+const DENSITY_POSE_TIP = 'YouCam couldn’t read that angle. Lower your head about 45° so the camera sees your parting, then try again, a little higher or lower if it still won’t read.';
+
+const MAX_CODE_FAILURES = 20;
+const CODE_FAILURE_WINDOW_MS = 60 * 60 * 1000;
+const CATALOGUE_FAILURE_MS = 60_000;
+const BUSY_MESSAGE = 'A lot of photos are on their way right now. Please try again in a moment.';
+
 export function createApp({
   features,
   agent = null,
@@ -60,7 +73,8 @@ export function createApp({
   perIpDailyUnits = 100,
   dailyUnitBudget = 300,
   perIpDailyUploads = 150,
-  trustProxy = 1,
+  maxUploadsInFlight = 8,
+  trustProxy = 0,
   csp = false,
   refFetch = fetchRefImage,
   logger = console,
@@ -86,23 +100,62 @@ export function createApp({
   const api = express.Router();
   api.use(express.json({ limit: '64kb' }));
 
+  // Anyone can call the catalogue routes, so concurrent reads share one YouCam
+  // request and a failure is answered from memory for a minute. A success is
+  // not kept here: features.js caches its own lists.
+  const sharedRead = (read) => {
+    let memo = null;
+    return () => {
+      if (!memo || (memo.failedAt && Date.now() - memo.failedAt > CATALOGUE_FAILURE_MS)) {
+        const entry = { failedAt: 0, pending: Promise.resolve().then(read) };
+        memo = entry;
+        entry.pending.then(
+          () => {
+            if (memo === entry) memo = null;
+          },
+          () => {
+            entry.failedAt = Date.now();
+          },
+        );
+      }
+      return memo.pending;
+    };
+  };
+  const hairTemplates = sharedRead(() => features.hairTemplates());
+  const curlTemplates = sharedRead(() => features.curlTemplates());
+
   // Free routes, no units spent: available without the access code.
   api.get('/status', (req, res) => {
     res.json({ mode: features.mode, accessCodeRequired: Boolean(accessCode) });
   });
-  api.get('/hair/templates', wrap(async (req, res) => res.json({ templates: await features.hairTemplates() })));
+  api.get('/hair/templates', wrap(async (req, res) => res.json({ templates: await hairTemplates() })));
   api.get('/brows/patterns', wrap(async (req, res) => res.json({ patterns: await features.browPatterns() })));
-  api.get('/hair/curl-templates', wrap(async (req, res) => res.json({ templates: await features.curlTemplates() })));
-  // Live unit prices, read through YouCam's MCP server (free).
-  api.get('/costs', wrap(async (req, res) => res.json({ costs: await features.unitCosts().catch(() => ({})) })));
+  api.get('/hair/curl-templates', wrap(async (req, res) => res.json({ templates: await curlTemplates() })));
 
+  // Wrong codes per IP, counted from the first one in the window. A request
+  // with no code at all is not a guess, and a throttled IP can't confirm a right one.
+  const codeFailures = new Map();
   api.use((req, res, next) => {
     if (!accessCode) return next();
     const given = Buffer.from(String(req.get('x-access-code') || ''));
+    const key = req.ip || 'unknown';
+    let failed = codeFailures.get(key);
+    if (failed && Date.now() - failed.since > CODE_FAILURE_WINDOW_MS) {
+      codeFailures.delete(key);
+      failed = null;
+    }
+    if (given.length && failed?.count >= MAX_CODE_FAILURES) return limited(res, 'AccessCodeLimit', 'Too many wrong access codes from this device. Please try again in an hour.');
     const want = Buffer.from(accessCode);
     if (given.length === want.length && crypto.timingSafeEqual(given, want)) return next();
+    if (given.length) {
+      if (!failed && codeFailures.size >= 20_000) codeFailures.delete(codeFailures.keys().next().value);
+      codeFailures.set(key, { since: failed?.since ?? Date.now(), count: (failed?.count ?? 0) + 1 });
+    }
     res.status(401).json({ error: { code: 'AccessCode', fix: 'setup', message: 'Enter the access code for this demo.' } });
   });
+
+  // Live unit prices, read through YouCam's MCP server (free).
+  api.get('/costs', wrap(async (req, res) => res.json({ costs: await features.unitCosts().catch(() => ({})) })));
 
   // Budgets are kept in YouCam units, per IP and for the whole server, per UTC
   // day. 4xx answers (validation errors, and tasks YouCam reports as failed,
@@ -167,8 +220,19 @@ export function createApp({
     next();
   };
 
+  // Photos sit in memory while they pass through, so only so many at a time.
+  let uploadsInFlight = 0;
+  const uploadGate = (req, res, next) => {
+    if (uploadsInFlight >= maxUploadsInFlight) return limited(res, 'Busy', BUSY_MESSAGE);
+    uploadsInFlight += 1;
+    res.once('close', () => {
+      uploadsInFlight -= 1;
+    });
+    next();
+  };
+
   // Rejected before the body is buffered, so oversized uploads are cheap to refuse.
-  api.post('/upload', uploadLimit, express.raw({ type: ['image/jpeg', 'image/png'], limit: MAX_UPLOAD }), wrap(async (req, res) => {
+  api.post('/upload', uploadGate, uploadLimit, express.raw({ type: ['image/jpeg', 'image/png'], limit: MAX_UPLOAD }), wrap(async (req, res) => {
     const buf = Buffer.isBuffer(req.body) ? req.body : null;
     const info = buf && sniffImage(buf);
     if (!info) throw badRequest('NotAnImage', 'Please send a JPEG or PNG photo.');
@@ -204,18 +268,26 @@ export function createApp({
       if (!isPublicHttpsUrl(refUrl)) throw badRequest('InvalidRefUrl', 'The photo link must be a public https:// address.', 'ref');
       return 'demo_ref';
     }
+    if (uploadsInFlight >= maxUploadsInFlight) {
+      const err = badRequest('Busy', BUSY_MESSAGE, 'service');
+      err.status = 429;
+      throw err;
+    }
     const refused = takeUploadSlot(req);
     if (refused) {
       const err = badRequest('DailyLimit', refused, 'service');
       err.status = 429;
       throw err;
     }
+    uploadsInFlight += 1;
     try {
       const { buf, info } = await refFetch(String(refUrl), limits);
       return (await features.upload(buf, info)).fileId;
     } catch (err) {
       if (err instanceof RefImageError) throw badRequest(err.code, err.message, 'ref');
       throw err;
+    } finally {
+      uploadsInFlight -= 1;
     }
   }
   async function asRefErrors(fn, what) {
@@ -255,7 +327,7 @@ export function createApp({
   api.post('/hair/color', quota(() => UNIT_COST.hairColor), wrap(async (req, res) => {
     const { fileId, family, hex } = req.body || {};
     requireFileId(fileId);
-    const shade = HAIR_SHADES[family] || (typeof hex === 'string' && /^#[0-9a-f]{6}$/i.test(hex) ? hex : null);
+    const shade = Object.hasOwn(HAIR_SHADES, String(family)) ? HAIR_SHADES[family] : typeof hex === 'string' && /^#[0-9a-f]{6}$/i.test(hex) ? hex : null;
     if (!shade) throw badRequest('MissingShade', 'Choose a hair colour.', 'service');
     res.json(await features.hairColor({ fileId, hex: shade }));
   }));
@@ -267,7 +339,8 @@ export function createApp({
     // Without a choice, the softest texture (YouCam lists a men's style first).
     const template = templates.find((t) => t.id === templateId) || templates.find((t) => /subtle/i.test(t.title)) || templates[0];
     if (!template) throw badRequest('NoTemplates', 'Regrowth previews aren’t available right now.', 'service');
-    res.json({ ...(await features.regrowth({ fileId, templateId: template.id, hex: HAIR_SHADES[family] || null })), templateId: template.id });
+    const hex = Object.hasOwn(HAIR_SHADES, String(family)) ? HAIR_SHADES[family] : null;
+    res.json({ ...(await features.regrowth({ fileId, templateId: template.id, hex })), templateId: template.id });
   }));
 
   api.post('/earrings/try-on', quota(() => UNIT_COST.earrings), wrap(async (req, res) => {
@@ -280,7 +353,12 @@ export function createApp({
 
   api.post('/hair/density', quota(() => UNIT_COST.density), wrap(async (req, res) => {
     requireFileId(req.body?.fileId);
-    res.json(await features.hairDensity({ fileId: req.body.fileId }));
+    try {
+      res.json(await features.hairDensity({ fileId: req.body.fileId }));
+    } catch (err) {
+      if (err instanceof YouCamError && !err.expose && DENSITY_POSE_ERROR.test(err.code) && explain(err.code).fix === 'photo') Object.assign(err, { expose: true, fix: 'photo', message: DENSITY_POSE_TIP });
+      throw err;
+    }
   }));
 
   // The companion: a chat budget per IP and per server, like the unit budget.
@@ -293,12 +371,21 @@ export function createApp({
     if (dailyChatBudget && serverChats >= dailyChatBudget) return limited(res, 'DemoBudget', 'The companion has answered all it can for today. Please come back tomorrow.');
     chats.set(key, n + 1);
     serverChats += 1;
+    res.locals.chatDay = day;
     next();
   }, wrap(async (req, res) => {
     try {
       res.json(await agent.respond({ messages: req.body?.messages, context: req.body?.context }));
     } catch (err) {
-      if (err.code === 'EmptyQuestion') throw badRequest('EmptyQuestion', 'Ask a question first.', 'service');
+      if (err.code === 'EmptyQuestion') {
+        // Nothing was asked, so it doesn't count.
+        if (res.locals.chatDay === day) {
+          const key = req.ip || 'unknown';
+          chats.set(key, Math.max(0, (chats.get(key) || 0) - 1));
+          serverChats = Math.max(0, serverChats - 1);
+        }
+        throw badRequest('EmptyQuestion', 'Ask a question first.', 'service');
+      }
       logger.warn?.(`[agent] ${err.code || 'error'}: ${err.message}`);
       const e = badRequest(err.code === 'RateLimitExceeded' ? 'RateLimitExceeded' : 'AgentUnavailable', 'The companion couldn’t answer just now. Please try again in a moment.', 'service');
       e.status = 503;

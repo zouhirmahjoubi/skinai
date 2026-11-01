@@ -3,6 +3,9 @@ import { useStore, go } from '../lib/store.jsx';
 import { api, setAccessCode } from '../lib/api.js';
 import { TopBar, PaletteSwitcher } from '../components.jsx';
 import { TREATMENTS, TREATMENT_KEYS } from '../../../core/treatments.js';
+import { JOURNAL_EXTRAS } from '../lib/store.jsx';
+import { db } from '../lib/db.js';
+import { setLessMotion, useLessMotion } from '../lib/reduced.js';
 
 export default function Settings() {
   const { profile, saveProfile, server, resetAll, loadSample, importJournal, checkins, looks, print, list } = useStore();
@@ -14,6 +17,7 @@ export default function Settings() {
   const [dataMsg, setDataMsg] = useState('');
   const restoreInput = useRef(null);
   const [draft, setDraft] = useState(profile);
+  const lessMotion = useLessMotion();
 
   useEffect(() => setDraft(profile), [profile]);
   useEffect(() => {
@@ -30,12 +34,15 @@ export default function Settings() {
       });
   }, [server.mode]);
 
-  function exportData() {
-    const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), profile, print, checkins, looks, list }, null, 2)], { type: 'application/json' });
+  async function exportData() {
+    const extras = Object.fromEntries(await Promise.all(JOURNAL_EXTRAS.map(async (key) => [key, await db.get(key)])));
+    const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), profile, print, checkins, looks, list, ...extras }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
+    a.href = url;
     a.download = `still-me-journal-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
   async function restore(e) {
@@ -131,9 +138,16 @@ export default function Settings() {
       </section>
 
       <section className="sheet stack" aria-labelledby="theme">
-        <h2 id="theme">Colour theme</h2>
+        <h2 id="theme">Colour and motion</h2>
         <p className="small">Choose the colours you like. Warnings keep their own colours in every theme.</p>
         <PaletteSwitcher />
+        <label className="toggle">
+          <span>
+            <strong>Less motion</strong>
+            <span className="fine" style={{ display: 'block' }}>Turns off movement across the app. Helpful if motion makes you feel unwell.</span>
+          </span>
+          <input type="checkbox" checked={lessMotion} onChange={(e) => setLessMotion(e.target.checked)} />
+        </label>
       </section>
 
       <section className="sheet stack" aria-labelledby="about">

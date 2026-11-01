@@ -4,7 +4,7 @@ import { CONCERNS, displayScore } from '../../../core/concerns.js';
 import { treatmentPhase } from '../../../core/treatments.js';
 import { sameSeries } from '../../../core/trends.js';
 
-const fmt = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+const fmt = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 
 export default function Skin() {
   const { checkins, profile, server } = useStore();
@@ -40,7 +40,7 @@ export default function Skin() {
                   <span>{c.label}</span>
                   <span className="row">
                     <Sparkline values={values} />
-                    <strong style={{ width: 32, textAlign: 'right' }}>{lastScore ?? '–'}</strong>
+                    <strong style={{ width: 32, textAlign: 'right' }}>{lastScore ?? 'n/a'}</strong>
                   </span>
                 </div>
               );
@@ -61,12 +61,12 @@ export default function Skin() {
               const p = treatmentPhase(profile.startDate, new Date(`${c.date}T12:00:00`));
               return (
                 <a key={c.id} href={`#/result/${c.id}`}>
-                  {c.photo ? <img src={c.photo} alt="" /> : <span className="thumb" aria-hidden="true"><Icon name="skin" /></span>}
+                  {c.photo ? <img src={c.photo} alt="" loading="lazy" /> : <span className="thumb" aria-hidden="true"><Icon name="skin" /></span>}
                   <span>
                     <strong>{fmt(c.date)}</strong>
                     <span className="fine" style={{ display: 'block' }}>
                       {p.phase === 'before' ? 'Before treatment' : `Week ${p.week}`}
-                      {c.sample ? ', sample data' : c.demo ? ', demo result' : ''}
+                      {c.demo ? ', simulated' : ''}
                     </span>
                   </span>
                   <span className="fine">{c.tier === 'hd' ? 'HD' : 'SD'}</span>

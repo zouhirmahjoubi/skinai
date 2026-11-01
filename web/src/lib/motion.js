@@ -1,107 +1,71 @@
-// Screen choreography with GSAP. Restrained on purpose: people on treatment
-// can have nausea or blurred vision, so motion is short, small and opacity-led,
-// warnings never move, and "reduce motion" leaves only a brief fade.
+// The welcome page's choreography, with GSAP and ScrollTrigger. Only the welcome
+// page imports this, so the app screens never download GSAP. Scroll drives it
+// without taking over: nothing is pinned or hijacked, and text never sits faint
+// waiting for a scroll. With reduced motion everything is simply there.
 
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { reducedMotion } from './reduced.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
-export const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-
-// Anything that tells someone to act, or holds such a message, appears at once.
-const STILL = '.note.call, .note.watch, [role="alert"], .error-box, [data-still]';
-const isStill = (el) => el.matches(STILL) || Boolean(el.querySelector(STILL));
-const MAX_STAGGERED = 6;
 const DONE = { clearProps: 'opacity,transform' };
 
-// A screen usually renders one wrapper; step into it to stagger its sections.
-function sectionsOf(root) {
-  let el = root;
-  while (el.children.length === 1 && el.firstElementChild.children.length > 1) el = el.firstElementChild;
-  return [...el.children].filter((c) => !isStill(c) && c.offsetParent !== null);
-}
-
-/** Brings a freshly shown screen in: its sections fade up in reading order, then the timeline settles. */
-export function enterScreen(root) {
-  if (!root) return () => {};
-  const items = sectionsOf(root);
-  if (!items.length) return () => {};
-  const ctx = gsap.context(() => {
-    if (reducedMotion()) {
-      gsap.fromTo(items, { opacity: 0 }, { opacity: 1, duration: 0.18, ...DONE });
-      return;
-    }
-    const tl = gsap.timeline({ defaults: { ease: 'expo.out' } });
-    tl.fromTo(
-      items,
-      { opacity: 0, y: 14 },
-      { opacity: 1, y: 0, duration: 0.55, stagger: (i) => Math.min(i, MAX_STAGGERED) * 0.06, ...DONE },
-    );
-    // The treatment timeline: weeks pop in left to right, then the side-effect bands draw across.
-    const nodes = root.querySelectorAll('.road-week .node');
-    const bands = root.querySelectorAll('.road-bands .band');
-    if (nodes.length) tl.fromTo(nodes, { scale: 0.4, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.45, ease: 'back.out(2)', stagger: 0.03, ...DONE }, 0.12);
-    if (bands.length) tl.fromTo(bands, { scaleX: 0, transformOrigin: '0% 50%' }, { scaleX: 1, duration: 0.6, stagger: 0.07, clearProps: 'transform,transformOrigin' }, 0.22);
-  }, root);
-  return () => ctx.revert();
+/** Runs the portrait's gathering: `render` gets 0..1 each frame, then `done` fires. */
+export function gather(render, done) {
+  const state = { p: 0 };
+  const tween = gsap.to(state, { p: 1, duration: 2.1, ease: 'none', onUpdate: () => render(state.p), onComplete: done });
+  return () => tween.kill();
 }
 
 /**
- * The welcome landing, after Ondine's "Scrolltide": the hero (the portrait with
- * its scan) assembles on load, then scroll drives the rest. How-it-works steps light up as they cross the
- * middle of the screen while a rail fills beside them and cards pop onto the
- * arch; the promise darkens word by word. getOrb() lets scroll turn the orb.
- * With reduced motion everything is simply shown, fully lit.
+ * The page's story. On wide screens one phone stays in view and changes screen as
+ * each chapter crosses the middle, turning slightly with the scroll. On phones
+ * every chapter carries its own screen, which opens as it arrives.
  */
-export function landingStory(root, getOrb) {
+export function landingStory(root) {
   if (!root) return () => {};
   const q = gsap.utils.selector(root);
-  const steps = q('.rail-step');
-  const labels = q('.arch-card');
-  const light = (upTo) => {
-    steps.forEach((s, i) => s.classList.toggle('on', i <= upTo));
-    labels.forEach((l, i) => l.classList.toggle('on', i <= upTo));
-  };
+  const chapters = q('.chapter');
+  const screens = q('.phone-screen');
+  const show = (i) => screens.forEach((s, n) => s.classList.toggle('on', n === i));
+  show(0);
 
   const mm = gsap.matchMedia(root);
-  // matchMedia only runs when at least one query matches, so one of motion/reduce always does.
-  const queries = { motion: '(prefers-reduced-motion: no-preference)', reduce: '(prefers-reduced-motion: reduce)', wide: '(min-width: 900px)' };
-  mm.add(queries, ({ conditions }) => {
-    if (conditions.reduce) {
-      light(steps.length - 1);
-      return;
+  // matchMedia only runs when at least one query matches, so "always" guarantees a run.
+  mm.add({ always: 'all', wide: '(min-width: 900px)' }, ({ conditions }) => {
+    // The wide page shows these screens nowhere else, so they change with the scroll whatever the motion setting.
+    if (conditions.wide) {
+      chapters.forEach((chapter, i) => ScrollTrigger.create({ trigger: chapter, start: 'top 55%', end: 'bottom 55%', onToggle: (self) => self.isActive && show(i) }));
     }
+    if (reducedMotion()) return;
 
-    // Entrance: words rise behind their masks, the orb settles, pins and the card follow.
+    // Arrival: words rise behind their masks, everything else follows within 0.8 s.
     gsap
       .timeline({ defaults: { ease: 'expo.out' } })
-      .fromTo(q('.land-top'), { opacity: 0, y: -8 }, { opacity: 1, y: 0, duration: 0.5, ...DONE })
-      .fromTo(q('.hero-head .eyebrow'), { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.5, ...DONE }, 0.05)
-      .fromTo(q('.hero-title .hero-word > span'), { yPercent: 110 }, { yPercent: 0, duration: 0.7, stagger: 0.045, clearProps: 'transform' }, 0.1)
-      .fromTo(q('.portrait'), { opacity: 0, scale: 0.96 }, { opacity: 1, scale: 1, duration: 1.1, ...DONE }, 0.15)
-      .fromTo(q('.hero-big .hero-word > span'), { yPercent: 110 }, { yPercent: 0, duration: 0.8, clearProps: 'transform' }, 0.35)
-      .fromTo(q('.pin'), { opacity: 0, scale: 0.9 }, { opacity: 1, scale: 1, duration: 0.6, stagger: 0.12, ease: 'back.out(1.8)', ...DONE }, 0.5)
-      .fromTo(q('.scan-card'), { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.7, ...DONE }, 0.55)
-      .fromTo(q('.scan-bar > span'), { scaleX: 0 }, { scaleX: 1, duration: 1.1, ease: 'power2.inOut', transformOrigin: '0% 50%', clearProps: 'transform' }, 0.65)
-      .from(q('.scan-card dd[data-count]'), { textContent: 0, snap: { textContent: 1 }, duration: 1, ease: 'power1.out' }, 0.7)
-      .fromTo(q('[data-rise]'), { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.6, stagger: 0.08, ...DONE }, 0.3);
+      .fromTo(q('.land-top'), { opacity: 0, y: -8 }, { opacity: 1, y: 0, duration: 0.45, ...DONE })
+      .fromTo(q('.hero-title .hero-word > span'), { yPercent: 110 }, { yPercent: 0, duration: 0.7, stagger: 0.07, clearProps: 'transform' }, 0.05)
+      .fromTo(q('.hero [data-rise]'), { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.5, stagger: 0.06, ...DONE }, 0.25);
 
-    // How it works: each step lights as it crosses 60% of the screen height.
-    steps.forEach((step, i) =>
-      ScrollTrigger.create({ trigger: step, start: 'top 60%', onEnter: () => light(i), onLeaveBack: () => light(i - 1) }),
-    );
-    gsap.fromTo(q('.rail-fill'), { scaleY: 0 }, { scaleY: 1, ease: 'none', transformOrigin: '50% 0%', scrollTrigger: { trigger: q('.steps-wrap')[0], start: 'top 60%', end: 'bottom 60%', scrub: 0.4 } });
+    const rise = (targets, trigger, vars = {}) =>
+      gsap.fromTo(targets, { opacity: 0, y: 22 }, { opacity: 1, y: 0, duration: 0.7, ease: 'expo.out', stagger: 0.07, ...DONE, ...vars, scrollTrigger: { trigger, start: 'top 84%', once: true } });
 
-    // The promise: words go from faint to full ink as the paragraph scrolls through.
-    gsap.fromTo(q('.statement .sw'), { opacity: 0.16 }, { opacity: 1, stagger: 0.1, ease: 'none', scrollTrigger: { trigger: q('.statement')[0], start: 'top 82%', end: 'bottom 52%', scrub: 0.5 } });
+    rise(q('.story-head > *'), q('.story-head')[0]);
+    rise(q('.final > *'), q('.final')[0]);
 
-    // Scroll turns the orb a little further.
-    ScrollTrigger.create({ trigger: root, start: 'top top', end: 'bottom bottom', onUpdate: (self) => getOrb?.()?.setProgress(self.progress) });
+    chapters.forEach((chapter) => {
+      rise(chapter.querySelectorAll('.chapter-text > *'), chapter);
+      if (!conditions.wide) {
+        const shot = chapter.querySelector('.chapter-shot');
+        gsap.fromTo(shot, { y: 36, opacity: 0, scale: 0.97 }, { y: 0, opacity: 1, scale: 1, duration: 0.8, ease: 'expo.out', ...DONE, scrollTrigger: { trigger: shot, start: 'top 90%', once: true } });
+      }
+    });
 
-    // On wide screens only (parallax feels jumpy on phones): the hero visual drifts up as you leave it.
     if (conditions.wide) {
-      gsap.to(q('.hero-visual'), { yPercent: -6, ease: 'none', scrollTrigger: { trigger: q('.hero')[0], start: 'top top', end: 'bottom top', scrub: true } });
+      const story = q('.story-body')[0];
+      gsap.fromTo(q('.story-rail-fill'), { scaleY: 0 }, { scaleY: 1, ease: 'none', transformOrigin: '50% 0%', scrollTrigger: { trigger: story, start: 'top 55%', end: 'bottom 55%', scrub: 0.4 } });
+      gsap.fromTo(q('.story-stage .phone'), { rotateY: -9, rotateX: 3 }, { rotateY: 9, rotateX: -2, ease: 'none', scrollTrigger: { trigger: story, start: 'top bottom', end: 'bottom top', scrub: 0.8 } });
+      gsap.to(q('.hero-figure'), { yPercent: -5, ease: 'none', scrollTrigger: { trigger: q('.hero')[0], start: 'top top', end: 'bottom top', scrub: true } });
     }
   });
   // Web fonts change line lengths, so measure again once they have loaded.

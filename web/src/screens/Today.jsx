@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useStore, useInsights } from '../lib/store.jsx';
-import { TopBar, RoadAhead, NoteCard, Icon, RedFlags } from '../components.jsx';
+import { TopBar, RoadAhead, NoteCard, Icon, RedFlags, Collapse } from '../components.jsx';
 import { TREATMENTS, treatmentPhase, expectationsFor } from '../../../core/treatments.js';
 import { hasAccessCode } from '../lib/api.js';
+import { reducedMotion } from '../lib/reduced.js';
 
-const fmt = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+const fmt = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
 function daysSince(iso) {
   return Math.floor((Date.now() - new Date(`${iso}T12:00:00`).getTime()) / 86400000);
@@ -75,12 +76,18 @@ export default function Today() {
             {treatmentList}
             {profile.startDate ? (phase.phase === 'during' ? `, since ${fmt(profile.startDate)}` : `, from ${fmt(profile.startDate)}`) : ''}
           </p>
+          <button type="button" className="linkish when-link" onClick={() => document.getElementById('when-to-call')?.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' })}>
+            When to call your care team
+          </button>
         </div>
-        <RoadAhead profile={profile} checkins={checkins} />
-        <p className="road-caption">Filled dots are your check-ins. Bars show when side effects commonly appear with your treatments; everyone is different.</p>
       </section>
 
       {callFirst && latest}
+
+      <section className="stack" aria-label="Your treatment timeline">
+        <RoadAhead profile={profile} checkins={checkins} />
+        <p className="road-caption">Filled dots are your check-ins. Bars show when side effects commonly appear with your treatments; everyone is different.</p>
+      </section>
 
       <section className="sheet stack">
         {phase.phase === 'before' && !last ? (
@@ -96,7 +103,7 @@ export default function Today() {
         ) : (
           <>
             <h2>You’re up to date</h2>
-            <p>Next check-in around {nextCheckin.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}. Check in sooner if your skin changes.</p>
+            <p>Next check-in around {nextCheckin.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}. Check in sooner if your skin changes.</p>
           </>
         )}
         <a className={`btn ${due ? 'primary' : 'secondary'} block`} href="#/checkin">
@@ -132,17 +139,19 @@ export default function Today() {
                       {e.timing === 'soon' ? ', often starts next week' : ''}
                     </span>
                   </span>
-                  <span aria-hidden="true" style={{ fontSize: 22, color: 'var(--accent)' }}>{openExp === e.id ? '−' : '+'}</span>
+                  <svg className="chevron" data-open={openExp === e.id} viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
                 </button>
-                {openExp === e.id && (
-                  <div className="stack" style={{ marginTop: 10 }}>
+                <Collapse open={openExp === e.id}>
+                  <div className="stack" style={{ paddingTop: 10 }}>
                     <p>{e.body}</p>
                     {(phase.phase === 'before' ? e.careTeamBefore || e.careTeam : e.careTeam) && (
                       <p className="small"><strong>Care team: </strong>{phase.phase === 'before' ? e.careTeamBefore || e.careTeam : e.careTeam}</p>
                     )}
                     {e.action && <a className="btn secondary small" href={`#/${e.action.to}`}>{e.action.label}</a>}
                   </div>
-                )}
+                </Collapse>
               </div>
             ))}
           </div>
@@ -154,7 +163,7 @@ export default function Today() {
         <div className="row spread">
           <h2>Care-team summary</h2>
         </div>
-        <p>Your scores, notes and questions on one page, ready to show or print at your next appointment.</p>
+        <p>Your scores, notes and questions, ready to show or print at your next appointment.</p>
         <a className="btn secondary block" href="#/report">
           <Icon name="print" />
           Open summary

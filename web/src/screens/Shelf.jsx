@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { useStore, useInsights } from '../lib/store.jsx';
-import { TopBar } from '../components.jsx';
+import { TopBar, Disclosure } from '../components.jsx';
 import { CATALOG, TYPE_LABEL, PRODUCT_BY_ID } from '../../../core/catalog.js';
 import { CLASSES, shelfContext, rankShelf, parseInci } from '../../../core/ingredients.js';
 
@@ -43,12 +43,11 @@ function Product({ item, saved, onToggle }) {
   }
   return (
     <article className="product">
-      <div className="pack" aria-hidden="true">{TYPE_LABEL[product.type]}</div>
       <div>
         <div className="row spread" style={{ alignItems: 'flex-start' }}>
           <div>
             <h3 ref={head} tabIndex={-1}>{product.name}</h3>
-            <div className="line">{product.line}, {product.size}</div>
+            <div className="line">{TYPE_LABEL[product.type]}, {product.line}, {product.size}</div>
           </div>
           <span className="price">${product.price}</span>
         </div>
@@ -72,6 +71,35 @@ function Product({ item, saved, onToggle }) {
       </div>
     </article>
   );
+}
+
+/** The not-right-now products, grouped by why: a list to scan, not a shelf to shop. */
+function AvoidGroups({ items, list, onToggle }) {
+  const groups = new Map();
+  for (const item of items) {
+    const reason = item.reasons.find((r) => r.type === 'avoid');
+    const key = reason?.text || 'Not right for you just now';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  }
+  return [...groups].map(([reason, group]) => (
+    <div key={reason} className="avoid-group">
+      <h3>{reason}</h3>
+      <ul>
+        {group.map(({ product, reasons }) => (
+          <li key={product.id}>
+            <span>
+              {product.name} <span className="fine">{TYPE_LABEL[product.type].toLowerCase()}</span>
+            </span>
+            {list.includes(product.id) && (
+              <button type="button" className="btn small secondary" aria-label={`Remove ${product.name} from my list`} onClick={() => onToggle(product.id)}>Remove</button>
+            )}
+            <Inci product={product} reasons={reasons} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  ));
 }
 
 export default function Shelf() {
@@ -109,16 +137,25 @@ export default function Shelf() {
         <p className="muted">Every product’s ingredient list is checked against your treatments and your latest check-in. The shelf changes as your skin does.</p>
       </div>
 
+      {/* The moment that matters most: something already on the list stopped being right. */}
+      {flagged.filter((r) => r.verdict === 'avoid').map((r) => (
+        <article key={r.product.id} className="note call" data-still>
+          <div className="note-kicker">On your list, not right now</div>
+          <h2 className="note-title">{r.product.name}</h2>
+          <p>{r.reasons.find((x) => x.type === 'avoid')?.text}. Check with your care team before using it.</p>
+        </article>
+      ))}
+
       {count > 0 && (
         <section className="sheet stack" aria-labelledby="mylist">
           <h2 id="mylist" tabIndex={-1}>My list</h2>
           <p className="small">
             {count} {count === 1 ? 'product' : 'products'}, ${total} in total. Your list goes on your care-team summary so you can check before starting anything new.
           </p>
-          {flagged.length > 0 && (
+          {flagged.some((r) => r.verdict === 'caution') && (
             <p className="small">
               <strong>Check again: </strong>
-              {flagged.map((r) => `${r.product.name} is now under “${r.verdict === 'avoid' ? 'Not right now' : 'Use with care'}”`).join('; ')}.
+              {flagged.filter((r) => r.verdict === 'caution').map((r) => `${r.product.name} is now under “Use with care”`).join('; ')}.
             </p>
           )}
           {mine.length > 0 && (
@@ -187,17 +224,12 @@ export default function Shelf() {
       )}
 
       {avoid.length > 0 && (
-        <details className="sheet">
-          <summary style={{ cursor: 'pointer' }}>
-            <h2 style={{ display: 'inline' }}>Not right now</h2> <span className="fine">({avoid.length}, with reasons)</span>
-          </summary>
-          <div style={{ marginTop: 12 }}>
-            {avoid.map(item)}
-          </div>
-        </details>
+        <Disclosure id="not-now" title="Not right now" hint={`${avoid.length} products, with reasons`}>
+          <AvoidGroups items={avoid} list={list} onToggle={toggleList} />
+        </Disclosure>
       )}
 
-      <p className="fine">Products are from Shelfside, a fictional demo store. A retailer can plug in its own catalog and cart: Still Me only needs each product’s ingredient list.</p>
+      <p className="fine">Products are from Shelfside, a fictional demo store.</p>
     </div>
   );
 }

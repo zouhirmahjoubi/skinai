@@ -29,7 +29,7 @@ export default function FittingSheet() {
       <TopBar back="#/look" mode={server.mode} right={<button className="btn secondary small no-print" onClick={() => window.print()}><Icon name="print" />Print</button>} />
       <header className="stack">
         <h1>Wig and brow fitting sheet</h1>
-        <p>{profile.name ? `For ${profile.name}. ` : ''}My natural hair and brows, recorded {new Date(`${print.date}T12:00:00`).toLocaleDateString()} before treatment changes.</p>
+        <p>{profile.name ? `For ${profile.name}. ` : ''}My natural hair and brows, recorded {new Date(`${print.date}T12:00:00`).toLocaleDateString('en-GB')} before treatment changes.</p>
       </header>
       {isDemo && <div className="banner">Demo mode: this sheet uses simulated colours and face shape, and try-on images are the photo unchanged. Make it again with a YouCam key on the server before using it with a wig specialist.</div>}
       <section className="sheet stack">
@@ -37,12 +37,12 @@ export default function FittingSheet() {
           {print.photo && <img src={print.photo} alt="Reference selfie" style={{ width: 140, borderRadius: 14 }} />}
           <table className="grid" style={{ flex: '1 1 220px' }}>
             <tbody>
-              <tr><th scope="row">Hair colour family</th><td>{c.hair_color_name ? `${c.hair_color_name}${c.hair_read ? ' (set by me)' : ''}` : '–'}</td></tr>
-              <tr><th scope="row">Brow colour</th><td>{c.eyebrow_color ? <><span className="dot" style={{ background: c.eyebrow_color }} aria-hidden="true" />{c.eyebrow_color}</> : '–'}</td></tr>
-              <tr><th scope="row">Skin tone</th><td>{c.skin_color ? <><span className="dot" style={{ background: c.skin_color }} aria-hidden="true" />{c.skin_color}</> : '–'}</td></tr>
-              <tr><th scope="row">Face shape</th><td>{f.faceShape || '–'}</td></tr>
-              <tr><th scope="row">Brow shape</th><td>{f.browShape || '–'}</td></tr>
-              <tr><th scope="row">Brow thickness</th><td>{f.browThickness || '–'}</td></tr>
+              <tr><th scope="row">Hair colour family</th><td>{c.hair_color_name ? `${c.hair_color_name}${c.hair_read ? ' (set by me)' : ''}` : 'Not read'}</td></tr>
+              <tr><th scope="row">Brow colour</th><td>{c.eyebrow_color ? <><span className="dot" style={{ background: c.eyebrow_color }} aria-hidden="true" />{c.eyebrow_color}</> : 'Not read'}</td></tr>
+              <tr><th scope="row">Skin tone</th><td>{c.skin_color ? <><span className="dot" style={{ background: c.skin_color }} aria-hidden="true" />{c.skin_color}</> : 'Not read'}</td></tr>
+              <tr><th scope="row">Face shape</th><td>{f.faceShape || 'Not read'}</td></tr>
+              <tr><th scope="row">Brow shape</th><td>{f.browShape || 'Not read'}</td></tr>
+              <tr><th scope="row">Brow thickness</th><td>{f.browThickness || 'Not read'}</td></tr>
             </tbody>
           </table>
         </div>
@@ -55,7 +55,7 @@ export default function FittingSheet() {
           <div className="gallery">
             {hairLooks.map((l) => (
               <figure key={l.id}>
-                <img src={l.image} alt={l.label} />
+                <img src={l.image} alt={l.label} loading="lazy" />
                 <figcaption>{l.label}</figcaption>
               </figure>
             ))}

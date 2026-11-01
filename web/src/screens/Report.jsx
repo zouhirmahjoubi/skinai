@@ -7,7 +7,7 @@ import { sameSeries } from '../../../core/trends.js';
 import { CATALOG, PRODUCT_BY_ID } from '../../../core/catalog.js';
 import { shelfContext, rankShelf } from '../../../core/ingredients.js';
 
-const fmt = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+const fmt = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
 export default function Report() {
   const { profile, checkins, server, list = [] } = useStore();
@@ -28,10 +28,10 @@ export default function Report() {
         <p>
           {profile.name ? `${profile.name}. ` : ''}
           {(profile.treatments || []).map((t) => TREATMENTS[t].noun).join(' and ').replace(/^./, (c) => c.toUpperCase()) || 'Treatment not specified'}
-          {profile.startDate ? `; started ${new Date(`${profile.startDate}T12:00:00`).toLocaleDateString()}` : ''}
-          {phase.phase === 'during' ? ` (week ${phase.week})` : ''}. Prepared {new Date().toLocaleDateString()}.
+          {profile.startDate ? `; started ${new Date(`${profile.startDate}T12:00:00`).toLocaleDateString('en-GB')}` : ''}
+          {phase.phase === 'during' ? ` (week ${phase.week})` : ''}. Prepared {new Date().toLocaleDateString('en-GB')}.{profile.sample ? ' Sample journey, not a real person.' : ''}
         </p>
-        <p className="fine">Self-tracked with the Still Me app using YouCam AI Skin Analysis photos (raw model scores 1–100, higher is healthier). Not a clinical assessment.</p>
+        <p className="fine">Self-tracked with the Still Me app using YouCam AI Skin Analysis photos (raw model scores 1 to 100, higher is healthier). Not a clinical assessment.</p>
       </header>
 
       {!current ? (
@@ -66,7 +66,7 @@ export default function Report() {
                     <tr key={k.key}>
                       <th scope="row" style={{ fontWeight: 400 }}>{k.label}</th>
                       {rows.map((c) => (
-                        <td key={c.id}>{displayScore(c.scores?.[k.key]) ?? '–'}</td>
+                        <td key={c.id}>{displayScore(c.scores?.[k.key]) ?? 'n/a'}</td>
                       ))}
                     </tr>
                   ))}

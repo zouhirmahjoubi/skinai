@@ -9,7 +9,7 @@ import { createApp } from './app.js';
 import { createYouCamClient } from './youcam.js';
 import { createLiveFeatures, createDemoFeatures } from './features.js';
 import { createYouCamMcp } from './youcam-mcp.js';
-import { createAgent, createDemoAgent } from './agent.js';
+import { createAgent, createRulesAgent } from './agent.js';
 import { loadDotEnv } from './env.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -21,9 +21,9 @@ if (!dev) process.env.NODE_ENV ||= 'production';
 const apiKey = (process.env.YOUCAM_API_KEY || '').trim();
 const forceDemo = process.env.DEMO_MODE === '1';
 const features = apiKey && !forceDemo ? createLiveFeatures(createYouCamClient({ apiKey }), { mcp: createYouCamMcp({ apiKey }) }) : createDemoFeatures();
-// The companion runs on Claude through KIE's Anthropic-compatible API.
+// The companion runs on Claude through KIE's Anthropic-compatible API, or on Still Me's rules alone without a key.
 const kieKey = (process.env.KIE_API_KEY || '').trim();
-const agent = kieKey ? createAgent({ apiKey: kieKey, model: (process.env.AGENT_MODEL || 'claude-sonnet-5-5').trim(), features }) : createDemoAgent({ features });
+const agent = kieKey ? createAgent({ apiKey: kieKey, model: (process.env.AGENT_MODEL || 'claude-sonnet-5-5').trim(), features }) : createRulesAgent({ features });
 
 // An empty or invalid value falls back to the default instead of switching a limit off.
 const envNumber = (name, fallback) => {
@@ -41,7 +41,7 @@ const app = createApp({
   dailyChatBudget: envNumber('DAILY_CHAT_BUDGET', 400),
   perIpDailyUnits: envNumber('PER_IP_DAILY_UNITS', 100),
   dailyUnitBudget: envNumber('DAILY_UNIT_BUDGET', 300),
-  trustProxy: envNumber('TRUST_PROXY', 1),
+  trustProxy: envNumber('TRUST_PROXY', 0),
   csp: !dev,
 });
 
@@ -62,6 +62,10 @@ if (dev) {
     console.error('dist/ is missing. Run `npm run build` first (or `npm run dev`).');
     process.exit(1);
   }
+  // Hashed file names never change. A missing chunk answers 404, not the app's HTML.
+  app.use('/assets', express.static(path.join(dist, 'assets'), { immutable: true, maxAge: '1y', index: false, fallthrough: false }));
+  // eslint-disable-next-line no-unused-vars
+  app.use('/assets', (err, req, res, next) => res.status(err.status || 500).type('text/plain').send('Not found'));
   app.use(express.static(dist, { maxAge: '1h', index: false }));
   app.get('*', (req, res) => res.sendFile(path.join(dist, 'index.html')));
 }

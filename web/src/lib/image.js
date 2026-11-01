@@ -10,6 +10,13 @@ export function loadImage(src) {
   });
 }
 
+/** A lighter copy of a photo to keep in the journal, so a months-long history stays quick to open. */
+export async function displayCopy(dataUrl, maxLong = 1280) {
+  const img = await loadImage(dataUrl);
+  const out = await cropToJpeg(img, { x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight }, { maxLong, quality: 0.8 });
+  return out.dataUrl;
+}
+
 function canvasOf(w, h) {
   const c = document.createElement('canvas');
   c.width = Math.round(w);
