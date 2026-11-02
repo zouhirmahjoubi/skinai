@@ -37,7 +37,7 @@ Skin, hair and brow changes are among the most visible side effects of cancer tr
 
 ## How we built it
 
-A React (Vite) mobile web app with an on-device journal (IndexedDB), animated with three.js (the portrait gathering from points), GSAP and ScrollTrigger (the welcome story) and Motion (the app), and a Node/Express server that holds the YouCam key and talks to YouCam two ways:
+A React (Vite) mobile web app with an on-device journal (IndexedDB), animated with a small WebGL shader (eight oil paintings that break into dots and settle into each other as you scroll), GSAP and ScrollTrigger (the welcome story) and Motion (the app), and a Node/Express server that holds the YouCam key and talks to YouCam two ways:
 - over REST: the File API, the async task, poll and delete flow, and the template APIs;
 - over MCP: a small streamable-HTTP client for YouCam's beauty and fashion MCP servers, which runs Hair Color, Wavy Hair, Hair Density and Earrings by file id and reads live prices with Get-Feature-Cost.
 
@@ -67,7 +67,7 @@ Clinician-reviewed content per drug, live Shopify or CSV catalog import, multili
 
 ## Built with
 
-YouCam API (AI Skin Analysis, Facial Color Tones Analyzer, Face Attributes & Ratio Analyzer, Hairstyle Virtual Try-On, Hat Virtual Try-On, Makeup Virtual Try-On) and YouCam MCP servers (Hair Color, Wavy Hair, Hair Density Detection, Earrings Virtual Try-On, Get-Feature-Cost), Claude and GPT through KIE, React, Vite, three.js, GSAP, Motion, Node.js, Express, IndexedDB.
+YouCam API (AI Skin Analysis, Facial Color Tones Analyzer, Face Attributes & Ratio Analyzer, Hairstyle Virtual Try-On, Hat Virtual Try-On, Makeup Virtual Try-On) and YouCam MCP servers (Hair Color, Wavy Hair, Hair Density Detection, Earrings Virtual Try-On, Get-Feature-Cost), Claude and GPT through KIE, React, Vite, WebGL, GSAP, Motion, Node.js, Express, IndexedDB.
 
 ## Testing instructions
 

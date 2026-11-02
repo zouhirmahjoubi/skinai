@@ -4,7 +4,7 @@ import { enterScreen } from '../lib/enter.js';
 import { TREATMENTS, TREATMENT_KEYS } from '../../../core/treatments.js';
 import { today } from '../lib/db.js';
 
-// The welcome page brings GSAP and three.js with it, so it loads on its own.
+// The welcome page brings GSAP and its paintings with it, so it loads on its own.
 const Landing = lazy(() => import('./Landing.jsx'));
 
 const isIOS = typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));

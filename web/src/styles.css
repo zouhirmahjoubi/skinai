@@ -1,24 +1,24 @@
 /* Still Me design tokens.
-   Palette: Oatmeal #e8dcc6, Pine Green #1f3b2e, Soft Lilac #cbb3e8. Pine is
-   the action colour in light mode; lilac takes over in dark mode and marks
-   progress in both, since lavender is the awareness colour for all cancers.
-   Red stays reserved for the call-your-care-team signs.
-   Atkinson Hyperlegible (Braille Institute) is used for all reading text
-   because treatment can blur vision; Literata gives headings a calm,
-   journal-like voice. Status always pairs colour with words. */
+   Fresco, the default theme: parchment, deep teal and gold, from the welcome page's
+   paintings. Teal is the action colour in light mode; gold takes over in dark mode
+   and marks progress in both. Red stays reserved for the call-your-care-team signs,
+   so it is never decoration.
+   Atkinson Hyperlegible (Braille Institute) is used for all reading text because
+   treatment can blur vision; Newsreader gives headings a calm, painted-book voice,
+   and DM Mono sets the small labels. Status always pairs colour with words. */
 
 :root {
-  --paper: #f6f1e8;
-  --surface: #fffdf9;
-  --tint: #efe6f7;
-  --ink: #17251e;
-  --ink-2: #56605a;
-  --line: #e9e1d3;
+  --paper: #f5eee0;
+  --surface: #fffbf3;
+  --tint: #e7efee;
+  --ink: #10262f;
+  --ink-2: #4c5b60;
+  --line: #e6ddcb;
   /* Text-field boundary: >= 3:1 on surface, paper and tint in both themes (WCAG 1.4.11). */
-  --field-line: #857a66;
-  --accent: #1f3b2e;
-  --accent-ink: #ffffff;
-  --mark: #8a68c2;
+  --field-line: #84796a;
+  --accent: #0f4c63;
+  --accent-ink: #fffbf3;
+  --mark: #9a7116;
   --call: #a8331d;
   --call-bg: #fbe8e3;
   --watch: #845500;
@@ -29,28 +29,36 @@
   --info-bg: #e7eaf7;
   --focus: #6b47b8;
   /* Text on the white pills laid over photos; the same in both themes. */
-  --on-photo-ink: #17251e;
+  --on-photo-ink: #10262f;
   /* Surfaces are solid with a hairline edge; only the tab bar stays translucent. */
   --glass-strong: color-mix(in srgb, var(--surface) 92%, transparent);
   --glass-blur: saturate(160%) blur(18px);
   --pill: color-mix(in srgb, var(--accent) 9%, transparent);
   /* Ambient background hazes, read by the shader. A breath of colour on the paper:
      strong enough to feel warm, faint enough that it never reads as a blur of colours. */
-  --ambient-a: #f1eaf0;
-  --ambient-b: #edf0e6;
-  --ambient-c: #f5efe3;
-  /* Accent words in large type (3:1 is enough at that size). */
-  --em: var(--mark);
-  --font-accent: 'Literata', Georgia, serif;
+  --ambient-a: #eaf0ea;
+  --ambient-b: #f7eedb;
+  --ambient-c: #f3ecdd;
+  /* The welcome page's paintings don't change with the theme, so neither do these. */
+  --sky: #0d4f68;
+  --on-sky: #fffbf3;
+  --on-sky-line: rgb(255 251 243 / 0.34);
+  --on-sky-scrim: rgb(7 38 52 / 0.6);
+  --on-plaster: #10262f;
+  --on-plaster-line: rgb(16 38 47 / 0.26);
+  --on-plaster-scrim: rgb(247 239 225 / 0.9);
+  --painting-btn: #0b1418;
+  --painting-btn-hover: #1b2a30;
   /* Motion: a decelerating curve for arrivals and a quick one for touch feedback.
      No overshoot: bounce is the movement most likely to bother someone feeling sick. */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-snap: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
-  --r-sheet: 20px;
-  --r-ctl: 14px;
+  --r-sheet: 16px;
+  --r-ctl: 10px;
   --font-body: 'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-display: 'Literata', Georgia, 'Times New Roman', serif;
+  --font-display: 'Newsreader Variable', Georgia, 'Times New Roman', serif;
+  --font-mono: 'DM Mono', ui-monospace, 'Cascadia Mono', Menlo, monospace;
   /* Room kept clear of the fixed tab bar (two-line labels included); grows with the text size. */
   --tabbar-reserve: calc(66px + 2.4rem + env(safe-area-inset-bottom));
   color-scheme: light;
@@ -58,16 +66,16 @@
 
 @media screen and (prefers-color-scheme: dark) {
   :root {
-    --paper: #111a15;
-    --surface: #19241e;
-    --tint: #2c2538;
-    --ink: #f4efe6;
-    --ink-2: #c9c0af;
-    --line: #2e3a33;
-    --field-line: #7d8a81;
-    --accent: #cbb3e8;
-    --accent-ink: #1a1424;
-    --mark: #9f84d4;
+    --paper: #0c1f28;
+    --surface: #132a35;
+    --tint: #1c3a45;
+    --ink: #f5eee0;
+    --ink-2: #bcc6c4;
+    --line: #24414d;
+    --field-line: #7d9099;
+    --accent: #e6c67e;
+    --accent-ink: #10262f;
+    --mark: #d4ae5c;
     --call: #ff9b85;
     --call-bg: #4a221b;
     --watch: #f3c46b;
@@ -76,42 +84,54 @@
     --good-bg: #1f3a2d;
     --info: #a9b9f5;
     --info-bg: #262f4d;
-    --focus: #e8dcc6;
+    --focus: #f5eee0;
     --glass-strong: color-mix(in srgb, var(--surface) 90%, transparent);
-    --ambient-a: #171c1f;
-    --ambient-b: #121f19;
-    --ambient-c: #141c17;
+    --ambient-a: #0f2632;
+    --ambient-b: #0e2230;
+    --ambient-c: #102029;
     color-scheme: dark;
   }
 }
 
-/* Colour themes from the reel: Lotus (the default above), Orchard Market and Cream.
-   Picked in Settings or on the welcome page. Status colours (call, watch, good, info)
-   never change, so a care-team warning reads the same in every theme. Every text and
-   control colour here keeps WCAG AA on paper, surface, tint and the ambient hazes. */
+/* The other colour themes: Lotus, Orchard Market and Cream. Picked in Settings.
+   Status colours (call, watch, good, info) never change, so a care-team warning reads
+   the same in every theme. Every text and control colour here keeps WCAG AA on paper,
+   surface, tint and the ambient hazes. The welcome page's paintings stay as they are. */
+:root[data-palette='lotus'] {
+  --paper: #f6f1e8; --surface: #fffdf9; --tint: #efe6f7; --ink: #17251e; --ink-2: #56605a;
+  --line: #e9e1d3; --field-line: #857a66; --accent: #1f3b2e; --accent-ink: #ffffff;
+  --mark: #8a68c2; --focus: #6b47b8; --on-photo-ink: #17251e;
+  --ambient-a: #f1eaf0; --ambient-b: #edf0e6; --ambient-c: #f5efe3;
+}
 :root[data-palette='orchard'] {
   --paper: #fbf3e9; --surface: #fffcf7; --tint: #f2f6dc; --ink: #1f2210; --ink-2: #595a45;
   --line: #ecdfc9; --field-line: #8a8068; --accent: #4a650b; --accent-ink: #ffffff;
-  --mark: #73900f; --focus: #c20500; --em: #c80500; --on-photo-ink: #1f2210;
+  --mark: #73900f; --focus: #c20500; --on-photo-ink: #1f2210;
   --ambient-a: #f7f4e0; --ambient-b: #fbefe3; --ambient-c: #fbece3;
 }
 :root[data-palette='cream'] {
   --paper: #f8eff0; --surface: #fffbfb; --tint: #f3e5e8; --ink: #2a0e26; --ink-2: #66525f;
   --line: #e9d6da; --field-line: #8f7683; --accent: #3a0f34; --accent-ink: #ffffff;
-  --mark: #a26f7a; --focus: #c75a3a; --em: #b4502f; --on-photo-ink: #2a0e26;
+  --mark: #a26f7a; --focus: #c75a3a; --on-photo-ink: #2a0e26;
   --ambient-a: #f6eaed; --ambient-b: #f4eaef; --ambient-c: #f8ece6;
 }
 @media screen and (prefers-color-scheme: dark) {
+  :root[data-palette='lotus'] {
+    --paper: #111a15; --surface: #19241e; --tint: #2c2538; --ink: #f4efe6; --ink-2: #c9c0af;
+    --line: #2e3a33; --field-line: #7d8a81; --accent: #cbb3e8; --accent-ink: #1a1424;
+    --mark: #9f84d4; --focus: #e8dcc6;
+    --ambient-a: #171c1f; --ambient-b: #121f19; --ambient-c: #141c17;
+  }
   :root[data-palette='orchard'] {
     --paper: #14160c; --surface: #1c1f12; --tint: #28301a; --ink: #f5f1e4; --ink-2: #c9c6ae;
     --line: #30361f; --field-line: #838b6b; --accent: #bfe23a; --accent-ink: #1d2706;
-    --mark: #a6c536; --focus: #f9ead7; --em: #ff7a6b;
+    --mark: #a6c536; --focus: #f9ead7;
     --ambient-a: #1a1f10; --ambient-b: #1c1a10; --ambient-c: #1c1610;
   }
   :root[data-palette='cream'] {
     --paper: #1a0e19; --surface: #241423; --tint: #331c30; --ink: #f7ecef; --ink-2: #d3bdc7;
     --line: #3b2537; --field-line: #9b8393; --accent: #c9a0a7; --accent-ink: #2a0e26;
-    --mark: #b98a93; --focus: #f5e0d6; --em: #e88b6c;
+    --mark: #b98a93; --focus: #f5e0d6;
     --ambient-a: #21111f; --ambient-b: #22131c; --ambient-c: #1f1117;
   }
 }
@@ -140,8 +160,8 @@ a { color: var(--accent); }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
 
 h1, h2, h3 { margin: 0; line-height: 1.15; text-wrap: balance; }
-h1 { font-family: var(--font-display); font-weight: 600; font-size: 2.25rem; letter-spacing: -0.02em; }
-h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.375rem; letter-spacing: -0.01em; }
+h1 { font-family: var(--font-display); font-weight: 400; font-size: 2.625rem; line-height: 1.08; letter-spacing: -0.022em; }
+h2 { font-family: var(--font-display); font-weight: 500; font-size: 1.5rem; letter-spacing: -0.012em; }
 h3 { font-size: 1.0625rem; font-weight: 700; }
 p { margin: 0; }
 .muted { color: var(--ink-2); }
@@ -154,15 +174,17 @@ p { margin: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 main h1[tabindex='-1']:focus, main h2[tabindex='-1']:focus { outline: none; }
 /* Welcome headline: each word rises from behind its own baseline mask. */
-.hero-word { display: inline-block; overflow: hidden; vertical-align: bottom; padding-bottom: 0.1em; margin-bottom: -0.1em; }
+.hero-word { display: inline-block; overflow: hidden; vertical-align: bottom; padding: 0 0.08em 0.14em 0; margin: 0 -0.08em -0.14em 0; }
 .hero-word > span { display: inline-block; }
 
 /* App frame ---------------------------------------------------------------- */
 .app { max-width: 560px; margin: 0 auto; padding: 20px 16px var(--tabbar-reserve); min-height: 100vh; }
 .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; min-height: 44px; }
-.wordmark { font-family: var(--font-display); font-weight: 600; font-size: 1.35rem; display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--ink); white-space: nowrap; }
+.wordmark { font-family: var(--font-display); font-weight: 500; font-size: 1.4rem; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--ink); white-space: nowrap; }
 .wordmark svg { width: 28px; height: 28px; }
-.mode-chip { font-size: 0.8rem; padding: 4px 10px; border-radius: 999px; background: var(--tint); color: var(--ink-2); white-space: nowrap; }
+/* Small spaced capitals, for labels only: never for anything that has to be read closely. */
+.tag, .mode-chip { font-family: var(--font-mono); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.09em; text-transform: uppercase; padding: 4px 8px; border-radius: 4px; white-space: nowrap; }
+.mode-chip { background: var(--tint); color: var(--ink-2); }
 .mode-chip.live { background: var(--good-bg); color: var(--good); }
 .icon-btn { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: transparent; border: 1px solid var(--line); cursor: pointer; }
 .icon-btn svg { width: 22px; height: 22px; }
@@ -208,7 +230,7 @@ main h1[tabindex='-1']:focus, main h2[tabindex='-1']:focus { outline: none; }
 .divider { height: 1px; background: var(--line); margin: 16px 0; border: 0; }
 
 /* Buttons ---------------------------------------------------------------- */
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 24px; border-radius: 999px; border: 1px solid transparent; font-weight: 700; cursor: pointer; text-decoration: none; transition: transform 0.25s var(--ease-snap), box-shadow 0.3s var(--ease-snap), background-color 0.25s var(--ease-snap), border-color 0.25s var(--ease-snap); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 24px; border-radius: 12px; border: 1px solid transparent; font-weight: 700; cursor: pointer; text-decoration: none; transition: transform 0.25s var(--ease-snap), box-shadow 0.3s var(--ease-snap), background-color 0.25s var(--ease-snap), border-color 0.25s var(--ease-snap); }
 .btn:active { transform: scale(0.97); transition-duration: 0.08s; }
 .btn.primary { background: var(--accent); color: var(--accent-ink); }
 .btn.secondary { background: transparent; color: var(--ink); border-color: color-mix(in srgb, var(--field-line) 50%, transparent); }
@@ -278,9 +300,9 @@ input[type='range'] { width: 100%; accent-color: var(--accent); min-height: 32px
 .score { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; padding: 12px 14px; border-radius: var(--r-ctl); background: var(--surface); border: 1px solid var(--line); text-align: left; width: 100%; cursor: pointer; }
 .score[aria-pressed='true'] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
 .score .name { font-weight: 700; }
-.score .value { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.score .value { font-family: var(--font-display); font-size: 1.625rem; font-weight: 400; font-variant-numeric: tabular-nums; }
 .score .trend { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; font-size: 0.9rem; color: var(--ink-2); }
-.trend-tag { font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--tint); color: var(--ink); white-space: nowrap; }
+.trend-tag { font-weight: 700; padding: 2px 8px; border-radius: 6px; background: var(--tint); color: var(--ink); white-space: nowrap; }
 .trend-tag.worse, .trend-tag.much-worse { background: var(--watch-bg); color: var(--watch); }
 .trend-tag.better, .trend-tag.much-better { background: var(--good-bg); color: var(--good); }
 .spark { width: 84px; height: 26px; margin-left: auto; flex: none; }
@@ -326,7 +348,7 @@ input[type='range'] { width: 100%; accent-color: var(--accent); min-height: 32px
 .product .line { font-size: 0.85rem; color: var(--ink-2); }
 .product .price { font-weight: 700; }
 .reasons { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
-.reasons li { font-size: 0.85rem; padding: 3px 10px; border-radius: 999px; background: var(--good-bg); color: var(--good); font-weight: 700; }
+.reasons li { font-size: 0.85rem; padding: 3px 10px; border-radius: 6px; background: var(--good-bg); color: var(--good); font-weight: 700; }
 .reasons li.avoid { background: var(--call-bg); color: var(--call); }
 .reasons li.caution { background: var(--watch-bg); color: var(--watch); }
 .avoid-group + .avoid-group { margin-top: 18px; }
@@ -341,7 +363,7 @@ mark { background: var(--watch-bg); color: var(--watch); font-weight: 700; borde
 mark.avoid { background: var(--call-bg); color: var(--call); }
 mark.good { background: var(--good-bg); color: var(--ink); font-weight: 400; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { font-size: 0.85rem; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); }
+.chip { font-size: 0.85rem; padding: 4px 12px; border-radius: var(--r-ctl); border: 1px solid var(--line); background: var(--surface); }
 .chip.avoid { border-color: var(--call); color: var(--call); }
 .chip.need { border-color: var(--good); color: var(--good); }
 button.chip { min-height: 40px; padding: 6px 14px; cursor: pointer; }
@@ -396,7 +418,7 @@ button.chip { min-height: 40px; padding: 6px 14px; cursor: pointer; }
 .history img, .history .thumb { width: 56px; height: 70px; border-radius: 10px; object-fit: cover; background: var(--tint); }
 .history .thumb { display: grid; place-items: center; color: var(--mark); }
 .history .thumb svg { width: 28px; height: 28px; }
-.hero-week { font-family: var(--font-display); font-size: 2.6rem; font-weight: 600; line-height: 1; }
+.hero-week { font-family: var(--font-display); font-size: 3rem; font-weight: 400; line-height: 1; letter-spacing: -0.025em; }
 .fine { font-size: 0.85rem; color: var(--ink-2); }
 .center { text-align: center; }
 .empty { text-align: center; padding: 28px 16px; }
@@ -406,72 +428,113 @@ table.grid th, table.grid td { padding: 8px 6px; border-bottom: 1px solid var(--
 table.grid th:first-child, table.grid td:first-child { text-align: left; }
 
 /* Welcome page ------------------------------------------------------------- */
-/* Breaks out of the 560px app column, up to 1120px on wide screens. */
-.landing { margin-inline: calc((100% - min(1120px, 100vw - 32px)) / 2); overflow-x: clip; }
-.land-top { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
-.display { letter-spacing: -0.02em; line-height: 1.1; }
-.hero-title em { font-family: var(--font-accent); font-style: italic; font-weight: 400; color: var(--em); }
+/* Full-bleed paintings, with fixed colours whatever the theme: they are paintings.
+   The page ends on the theme's own paper. */
+.app:has(.landing) { max-width: none; padding: 0; }
+.landing { --gx: 12px; --gy: 74svh; position: relative; isolation: isolate; overflow-x: clip; background: var(--sky); }
+/* The shared stage, when it can run: one fixed canvas behind every chapter. */
+.stage { display: none; position: fixed; inset: 0 0 auto; height: 100lvh; z-index: 0; background: var(--sky); }
+.stage canvas { display: block; width: 100%; height: 100%; }
+.landing.staged .stage { display: block; }
+.landing.staged .painting { display: none; }
+
+/* The scene itself. Without the stage each chapter is one screen with its own painting. */
+.scene { position: relative; z-index: 1; min-height: 100svh; isolation: isolate; overflow: hidden; color: var(--scene-ink); }
+.scene[data-tone='dark'] { --scene-ink: var(--on-sky); --scene-scrim: var(--on-sky-scrim); --focus: var(--on-sky); }
+.scene[data-tone='light'] { --scene-ink: var(--on-plaster); --scene-scrim: var(--on-plaster-scrim); --focus: var(--on-plaster); }
+.landing.staged .scene { min-height: 175svh; overflow: visible; }
+.landing.staged .scene.hero { min-height: 150svh; }
+.landing.staged .scene.last { min-height: 130svh; }
+.painting { position: absolute; inset: 0; z-index: -1; display: block; }
+.painting img { width: 100%; height: 100%; object-fit: cover; }
+/* The words stay in place while the painting holds, using the browser's own scroll. */
+.scene-hold { position: sticky; top: 0; min-height: 100svh; display: flex; flex-direction: column; justify-content: flex-end; padding: 92px 20px calc(30px + env(safe-area-inset-bottom)) 26px; }
+/* A soft patch of the painting's own colour behind the words, so they always hold AA. */
+.scene-copy, .hero-foot { position: relative; isolation: isolate; }
+.scene-copy::before, .hero-foot::before { content: ''; position: absolute; inset: -22px -26px; z-index: -1; border-radius: 40px; background: var(--scene-scrim); filter: blur(32px); pointer-events: none; }
+.scene-copy h2 { font-family: var(--font-display); font-weight: 300; font-size: clamp(2.6rem, 11.4vw, 4rem); line-height: 1.02; letter-spacing: -0.028em; }
+.scene-note { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 16px; font-size: 1.0625rem; line-height: 1.42; }
+.tag { background: color-mix(in srgb, currentColor 16%, transparent); }
 
 /* The promise and the button come first, so the button is always on the first screen. */
-.hero { display: grid; gap: 28px; margin-top: 10px; }
-.hero-copy { display: grid; gap: 16px; }
-.hero-title { font-family: var(--font-body); font-weight: 400; font-size: clamp(3.6rem, 20vw, 8rem); line-height: 1; letter-spacing: -0.045em; white-space: nowrap; }
-.hero-sub { font-size: clamp(1.15rem, 4.8vw, 1.5rem); line-height: 1.3; max-width: 22em; }
+.hero-copy { flex: 1; display: flex; flex-direction: column; justify-content: space-between; gap: 28px; }
+.hero-title { font-family: var(--font-display); font-weight: 300; font-size: clamp(4.4rem, 22vw, 7rem); line-height: 0.98; letter-spacing: -0.04em; white-space: nowrap; }
+.hero-title em { font-style: italic; }
+.hero-sub { margin-top: 10px; font-family: var(--font-display); font-weight: 400; font-size: clamp(1.3rem, 5.6vw, 1.625rem); line-height: 1.2; letter-spacing: -0.012em; max-width: 19em; }
+.hero-foot { display: grid; gap: 14px; }
+.hero-foot .scene-note { flex-direction: row; align-items: center; margin-top: 0; font-size: 1rem; }
+.hero-foot .small, .hero-foot .fine { color: inherit; }
+
+/* Buttons over a painting: dark and solid, with the arrow in its own small box. */
 .cta-row { display: grid; gap: 10px; }
-.btn.cta { gap: 10px; }
-.cta-arrow { display: grid; place-items: center; transition: transform 0.35s var(--ease-snap); }
-.cta-arrow svg { width: 18px; height: 18px; }
-.btn.cta:hover .cta-arrow, .btn.cta:focus-visible .cta-arrow { transform: translateX(3px); }
-.trust { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--ink-2); }
-.trust svg { flex: none; }
-/* A crisp, framed photo, like the app's own looks. */
-.hero-figure { position: relative; margin: 0; width: 100%; aspect-ratio: 928 / 1152; border-radius: 28px; overflow: hidden; pointer-events: none; }
-.hero-figure img, .hero-figure canvas { position: absolute; inset: 0; width: 100%; height: 100%; transition: opacity 0.5s var(--ease-out); }
-.hero-figure img { object-fit: cover; }
-.hero-figure canvas { opacity: 0; }
-.hero-figure.forming img { opacity: 0.12; transition: none; }
-.hero-figure.forming canvas { opacity: 1; transition: none; }
+.scene .btn.primary, .top-cta { background: var(--painting-btn); color: var(--on-sky); }
+.scene .btn.primary:hover, .top-cta:hover { background: var(--painting-btn-hover); }
+.scene .btn.secondary { background: color-mix(in srgb, var(--on-sky) 10%, transparent); color: var(--on-sky); border-color: color-mix(in srgb, var(--on-sky) 62%, transparent); }
+.scene .btn.secondary:hover { background: color-mix(in srgb, var(--on-sky) 20%, transparent); border-color: var(--on-sky); }
+.scene-copy .cta-row { margin-top: 20px; }
+.btn.cta { justify-content: space-between; gap: 14px; padding-inline: 20px 12px; }
+.arrow-box { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid color-mix(in srgb, var(--on-sky) 40%, transparent); border-radius: 7px; transition: transform 0.35s var(--ease-snap); }
+.btn:hover .arrow-box, .btn:focus-visible .arrow-box { transform: translateX(2px); }
 
-/* The story: real app screens, one per chapter. */
-.story { margin-top: 96px; }
-.story-head h2 { font-size: clamp(2rem, 8vw, 3.4rem); max-width: 15em; }
-.story-body { position: relative; margin-top: 48px; }
-.story-stage { display: none; }
-.chapters { list-style: none; margin: 0; padding: 0; display: grid; gap: 72px; }
-.chapter-text h3 { font-family: var(--font-display); font-size: 1.625rem; font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; }
-.chapter-text p { margin-top: 10px; color: var(--ink-2); max-width: 32em; }
-.phone { position: relative; aspect-ratio: 390 / 844; border-radius: 38px; overflow: hidden; background: var(--surface); border: 6px solid var(--ink); box-shadow: 0 24px 48px -28px color-mix(in srgb, var(--ink) 40%, transparent); }
+/* The fixed frame: logo, button, and the drawn lines that run over every painting. */
+.land-top { position: fixed; top: 0; left: 0; right: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 14px 26px; pointer-events: none; }
+.land-top > * { pointer-events: auto; }
+.land-top { --focus: var(--frame-ink); }
+.land-top .wordmark { --logo-tile: var(--painting-btn); --logo-ink: var(--on-sky); color: var(--frame-ink); transition: color 0.3s var(--ease-out); }
+.top-cta { min-height: 44px; padding: 0 8px 0 14px; gap: 10px; font-family: var(--font-mono); font-size: 0.78rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; }
+.landing[data-tone='dark'] { --frame-ink: var(--on-sky); --frame-line: var(--on-sky-line); --frame-top: var(--on-sky-scrim); }
+.landing[data-tone='light'] { --frame-ink: var(--on-plaster); --frame-line: var(--on-plaster-line); --frame-top: var(--on-plaster-scrim); }
+.landing[data-tone='end'] { --frame-ink: var(--ink); --frame-line: transparent; --frame-top: transparent; }
+/* A little of the painting's own colour behind the logo, whatever is painted up there. */
+.guides::before { content: ''; position: absolute; inset: 0 0 auto; height: 112px; background: linear-gradient(to bottom, var(--frame-top), transparent); transition: opacity 0.3s var(--ease-out); }
+.landing[data-tone='end'] .land-top { background: var(--paper); }
+.guides { position: fixed; inset: 0; z-index: 2; pointer-events: none; transition: opacity 0.3s var(--ease-out); }
+.landing[data-tone='end'] .guides { opacity: 0; }
+.guides > * { position: absolute; }
+.guide-v { left: var(--gx); top: 0; bottom: 0; width: 1px; background: var(--frame-line); }
+.guide-h, .guide-star, .guide-ticks { display: none; }
+.guide-label { left: 26px; top: 64px; font-family: var(--font-mono); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--frame-ink); }
+
+/* The real app, then the small print, on the theme's paper. */
+.land-end { position: relative; z-index: 3; padding: 92px 20px calc(28px + env(safe-area-inset-bottom)); background: var(--paper); color: var(--ink); display: grid; grid-template-columns: minmax(0, 1fr); gap: 40px; }
+.land-end > * { width: 100%; max-width: 1180px; margin-inline: auto; }
+.land-end h2 { font-weight: 300; font-size: clamp(2.2rem, 9vw, 3.4rem); line-height: 1.06; letter-spacing: -0.026em; max-width: 15em; }
+.land-end > section > .muted { margin-top: 12px; }
+.screens { list-style: none; margin: 28px -20px 0; padding: 4px 20px 16px; display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: thin; }
+.screens .phone { flex: 0 0 min(64vw, 250px); scroll-snap-align: center; }
+.phone { position: relative; aspect-ratio: 390 / 844; border-radius: 28px; overflow: hidden; background: var(--surface); border: 5px solid var(--ink); }
 .phone img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
-.chapter-shot { margin: 28px auto 0; width: min(76%, 300px); }
-
-.final { margin-top: 112px; display: grid; gap: 20px; }
-.final h2 { font-size: clamp(2.2rem, 9vw, 3.6rem); }
-.land-foot { margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 18px; font-size: 0.85rem; color: var(--ink-2); }
+.land-foot { padding-top: 18px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 18px; font-size: 0.85rem; color: var(--ink-2); }
 
 @media (min-width: 900px) {
-  .landing { margin-inline: calc((100% - min(1180px, 100vw - 96px)) / 2); }
-  .land-top { padding-top: 8px; }
-  .hero { grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); align-items: center; column-gap: 72px; min-height: calc(100svh - 110px); margin-top: 0; padding-block: 12px 32px; }
-  .hero-figure { justify-self: end; width: min(100%, calc((100svh - 160px) * 928 / 1152)); }
-  .hero-copy { gap: 22px; }
-  .hero-title { font-size: clamp(6rem, 10.5vw, 9.5rem); }
-  .hero-sub { font-size: 1.5rem; }
+  .landing { --gx: 5.2vw; --gy: min(70svh, calc(100svh - 200px)); }
+  .land-top { padding: 16px 24px 16px calc(var(--gx) + 28px); }
+  .guide-h { display: block; left: 0; right: 0; top: var(--gy); height: 1px; background: var(--frame-line); }
+  .guide-star { display: block; left: var(--gx); top: var(--gy); width: 20px; height: 20px; margin: -10px 0 0 -10px; background: var(--frame-ink); clip-path: polygon(50% 0, 56% 44%, 100% 50%, 56% 56%, 50% 100%, 44% 56%, 0 50%, 44% 44%); }
+  .guide-ticks { display: block; left: var(--gx); top: 18svh; width: 9px; height: 26svh; background: repeating-linear-gradient(to bottom, var(--frame-line) 0 1px, transparent 1px 8.6svh); }
+  .guide-label { left: calc(var(--gx) + 28px); top: 18svh; margin-top: -0.55em; }
+  /* The heading stands on the drawn line and the note sits just under it. */
+  .scene-hold { padding: 0 24px calc(100svh - var(--gy) + 22px) calc(var(--gx) + 28px); }
+  /* Kept to the empty wall or sky on the left, clear of the figures. */
+  .scene-copy { width: min(32vw, 520px); }
+  .scene[data-tone='light'] { --scene-scrim: color-mix(in srgb, var(--on-plaster-scrim) 62%, transparent); }
+  .scene.last .scene-copy { width: auto; max-width: 46vw; }
+  .scene-copy::before { inset: -22px -20px -180px; }
+  .scene-copy h2 { font-size: clamp(2.75rem, 4.3vw, 4.5rem); }
+  .scene-copy .scene-note { position: absolute; top: calc(100% + 40px); left: 0; right: 0; margin: 0; gap: 8px; font-size: 1.0625rem; }
+  .scene.last .scene-copy::before { inset: -22px -26px; }
+
+  .hero-copy { flex: 0 1 auto; margin-top: auto; justify-content: flex-end; max-width: min(46vw, 680px); gap: 24px; }
+  .hero-title { font-size: clamp(6rem, 11.2vw, 11rem); }
+  .hero-sub { font-size: clamp(1.5rem, 2.3vw, 2.125rem); }
+  .hero-foot { position: relative; }
+  .hero-foot::before { inset: -14px -24px -84px; }
+  .hero-foot .scene-note { position: absolute; top: calc(100% + 44px); left: 0; white-space: nowrap; font-size: 1.125rem; gap: 20px; }
   .cta-row { display: flex; flex-wrap: wrap; }
   .cta-row .btn { flex: 0 1 auto; }
-  /* One phone stays in view and changes screen as each chapter crosses the middle. */
-  .story { margin-top: 128px; }
-  .story-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); column-gap: 96px; }
-  .chapters { gap: 0; }
-  .chapter { min-height: 76svh; display: flex; align-items: center; }
-  .chapter-text h3 { font-size: 2.5rem; letter-spacing: -0.02em; }
-  .chapter-text p { margin-top: 14px; font-size: 1.25rem; line-height: 1.45; max-width: 24em; }
-  .chapter-shot { display: none; }
-  .story-stage { display: block; position: sticky; top: 9svh; height: 82svh; align-self: start; perspective: 1400px; }
-  .story-stage .phone { height: 100%; margin-inline: auto; }
-  .phone-screen { position: absolute; inset: 0; opacity: 0; transform: scale(1.02); transition: opacity 0.45s var(--ease-out), transform 0.6s var(--ease-out); }
-  .phone-screen.on { opacity: 1; transform: none; }
-  .final { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; column-gap: 72px; margin-top: 144px; }
-  .final .sheet { grid-column: 2; grid-row: 1 / span 2; }
+  .land-end { padding: 112px 48px 36px; gap: 56px; }
+  .screens { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 18px; margin-inline: 0; padding-inline: 0; overflow: visible; }
+  .phone { border-radius: 24px; }
 }
 
 /* On a laptop the tab bar becomes a side rail, with a wider reading column beside it.
@@ -493,12 +556,20 @@ table.grid th:first-child, table.grid td:first-child { text-align: left; }
   @media (hover: hover) and (pointer: fine) { .tabbar nav a:not([aria-current='page']):hover { color: var(--ink); } }
 }
 
+/* Colour theme buttons in Settings. */
+.palettes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.palette { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); text-align: left; font-size: 0.95rem; cursor: pointer; }
+.palette[aria-pressed='true'] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; font-weight: 700; }
+.palette-dots { display: flex; flex: none; }
+.palette-dots > * { width: 14px; height: 14px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--ink) 30%, transparent); }
+.palette-dots > * + * { margin-left: -4px; }
+
 /* Rows that open in place --------------------------------------------------- */
 .hub { display: grid; gap: 10px; }
 .disclosure { padding: 0; }
 .disclosure > h2 { font: inherit; }
 .disclosure-head { display: flex; width: 100%; min-height: 66px; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; background: none; border: 0; border-radius: var(--r-sheet); cursor: pointer; text-align: left; color: inherit; }
-.disclosure-title { display: block; font-family: var(--font-display); font-weight: 600; font-size: 1.125rem; line-height: 1.25; }
+.disclosure-title { display: block; font-family: var(--font-display); font-weight: 500; font-size: 1.25rem; line-height: 1.2; letter-spacing: -0.01em; }
 .disclosure-hint { display: block; margin-top: 2px; font-size: 0.875rem; color: var(--ink-2); }
 .disclosure-body { padding: 2px 18px 18px; }
 .chevron { width: 22px; height: 22px; flex: none; color: var(--accent); transition: transform 0.26s var(--ease-snap); }

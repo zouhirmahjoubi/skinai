@@ -17,7 +17,7 @@ import Report from './screens/Report.jsx';
 import FittingSheet from './screens/FittingSheet.jsx';
 import Settings from './screens/Settings.jsx';
 
-// The welcome page brings GSAP and three.js with it, so it loads on its own.
+// The welcome page brings GSAP and its paintings with it, so it loads on its own.
 const Landing = lazy(() => import('./screens/Landing.jsx'));
 
 // The welcome page, reopened after setup: the main button returns to the journal,

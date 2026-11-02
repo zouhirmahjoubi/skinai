@@ -9,7 +9,7 @@ Before recording:
 
 | Time | On screen | Voice-over |
 | --- | --- | --- |
-| 0:00 to 0:12 | Open the welcome page: the portrait gathers from points into "Still you."; then a wig try-on, drag the compare slider | "When you start cancer treatment, you're told your skin, hair and brows will change. Nobody shows you what that will look like, which changes matter, or what's safe to buy. Still Me does." |
+| 0:00 to 0:12 | Open the welcome page: the mirror painting gathers beside "Still you."; scroll once so it breaks into the next painting; then a wig try-on, drag the compare slider | "When you start cancer treatment, you're told your skin, hair and brows will change. Nobody shows you what that will look like, which changes matter, or what's safe to buy. Still Me does." |
 | 0:12 to 0:20 | Fast cut of setup: *EGFR inhibitor* + *Chemotherapy*, start date, consent | "You tell it your treatment and start date. Everything stays on your phone; photos go to YouCam only when you ask." |
 | 0:20 to 0:50 | Make the print (swatches, face shape, brow shape) → a wig template → **In my own colour** → *Save to my looks* (in **Looks**, each row opens in place) | "Before hair changes, one selfie saves your Hair and Brow Print, with YouCam's Facial Color Tones and Face Attributes. Then try wigs on yourself with YouCam Hairstyle Try-On, and one tap repaints the wig in your own colour with YouCam Hair Color, through YouCam's MCP server." |
 | 0:50 to 1:05 | Brow preview with the closest pencil, then **Earrings** on the same portrait | "If your brows thin, YouCam Makeup Try-On draws your own brows back on and finds the closest pencil. Earrings bring the eye back to your face, on your own unchanged photo." |
