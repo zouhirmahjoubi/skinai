@@ -136,9 +136,10 @@ export function landingStory(root) {
     q('.scene-copy').forEach((copy) => rise(copy.children, copy));
     q('.land-end > *').forEach((block) => rise(block, block));
 
-    // Words that have been read ease away, so they never sit over the next painting.
+    // Words that have been read ease away as soon as they start to move, so they never sit
+    // over the next painting or pass behind the fixed label.
     q('.scene:not(.last) .scene-hold > *').forEach((copy) => {
-      gsap.fromTo(copy, { opacity: 1 }, { opacity: 0, ease: 'none', immediateRender: false, scrollTrigger: { trigger: copy.closest('.scene'), start: 'bottom 70%', end: 'bottom 30%', scrub: true } });
+      gsap.fromTo(copy, { opacity: 1 }, { opacity: 0, ease: 'none', immediateRender: false, scrollTrigger: { trigger: copy.closest('.scene'), start: 'bottom 100%', end: 'bottom 66%', scrub: true } });
     });
   });
   // Web fonts change line lengths, so measure again once they have loaded.
