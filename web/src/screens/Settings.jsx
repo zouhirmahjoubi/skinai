@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore, go } from '../lib/store.jsx';
 import { api, setAccessCode } from '../lib/api.js';
-import { TopBar, PaletteSwitcher } from '../components.jsx';
+import { PageArt, TopBar, PaletteSwitcher } from '../components.jsx';
 import { TREATMENTS, TREATMENT_KEYS } from '../../../core/treatments.js';
 import { JOURNAL_EXTRAS } from '../lib/store.jsx';
 import { db } from '../lib/db.js';
@@ -76,6 +76,7 @@ export default function Settings() {
 
   return (
     <div className="stack-lg">
+      <PageArt scene="start" compact />
       <TopBar back="#/today" mode={server.mode} />
       <h1>Settings</h1>
 

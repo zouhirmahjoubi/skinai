@@ -9,7 +9,7 @@
 | Criterion | What Still Me shows |
 | --- | --- |
 | **Technological implementation** | 10 YouCam AI features: 6 over REST and 4 through YouCam's hosted MCP servers (beauty and fashion), plus live unit prices read through MCP. A companion agent calls Still Me's own rule engines as tools and proposes YouCam try-ons that run only after a tap. Every YouCam task is deleted once its result is downloaded. 191 automated tests. |
-| **Design** | One journey for one person: a print of their own hair and brows before treatment, weekly skin and hair checks, try-ons for what comes next, and printable pages for the wig fitter, the insurer and the care team. Mobile first, a painted welcome story, four colour themes, and motion built for people who may feel unwell: warnings never move, nothing bounces or loops, and Settings has a Less motion switch. |
+| **Design** | One journey for one person: a print of their own hair and brows before treatment, weekly skin and hair checks, try-ons for what comes next, and printable pages for the wig fitter, the insurer and the care team. Mobile first, a painted welcome story whose paintings head each app screen, four colour themes, and motion built for people who may feel unwell: warnings never move, nothing bounces or loops, and Settings has a Less motion switch. |
 | **Potential impact** | For people starting chemotherapy, radiation or targeted therapy. A generic skin app reads an EGFR-inhibitor rash as acne and sells products that make it worse. A wig chosen after hair loss can't be matched to the person's own hair, and usually can't be returned once worn. |
 | **Quality of idea** | Skin AI read against the treatment and the week, not a generic score. Try-on used to keep a person recognisable to themselves: their own brows drawn back, a wig in their own colour, earrings to frame the face, and how hair might grow back. |
 
@@ -127,13 +127,14 @@ core/ rule engines run in the browser:
 
 ## Motion
 
-Three tools, each where it fits, split so the app screens stay light (about 134 kB of JavaScript after compression; the welcome page adds about 51 kB).
+Four tools, each where it fits. Each one loads only when it is needed and never holds a screen back, so reading never waits for an animation.
 
 - **A small WebGL shader** (welcome page only): eight paintings share one canvas, and scroll position decides how far one has broken into dots and settled into the next (`web/src/lib/scenes.js`). It draws only when the scroll moves, so nothing runs while the page is still. If WebGL is slow or missing, each chapter simply shows its own painting.
-- **GSAP and ScrollTrigger** (welcome page only): the headline rises word by word, and words that have been read ease away (`web/src/lib/motion.js`). The scroll stays the browser's own: words hold in place with plain CSS `position: sticky`, and nothing is hijacked.
-- **Motion** (the app): screen changes, rows that open in place, chat messages, plan cards and try-on results (`LazyMotion` with the `m` component, in `web/src/App.jsx`, `components.jsx` and `screens/Ask.jsx`).
+- **three.js**: gold dust at real depth (`web/src/lib/goldDust.js`). On the welcome page it moves only with the scroll or the pointer, and each dissolve throws it outward. On an app screen it rises once over the painting, the first time, and then the scene is thrown away.
+- **GSAP and ScrollTrigger**: on the welcome page the drawn lines sketch themselves in, a small star travels down them as you read, headings rise word by word, and words that have been read ease away (`web/src/lib/motion.js`). The scroll stays the browser's own: words hold in place with plain CSS `position: sticky`, and nothing is hijacked. On app screens, sparklines draw, scores count up and lower blocks arrive as you reach them (`web/src/lib/appMotion.js`).
+- **Motion** (the app): each screen's painting opens downward and drifts as the page scrolls, plus screen changes, rows that open in place, chat messages, plan cards and try-on results (`LazyMotion` with the `m` component, in `web/src/App.jsx`, `components.jsx` and `screens/Ask.jsx`).
 
-People on treatment can have nausea or blurred vision, so warnings never move, nothing bounces, and the soft background glides when a screen opens, then holds still (plain WebGL, `web/src/lib/ambient.js`). The device's reduced-motion setting and the Less motion switch in Settings both stop all of it.
+People on treatment can have nausea or blurred vision, so warnings never move, nothing bounces, nothing loops, and the soft background glides when a screen opens, then holds still (plain WebGL, `web/src/lib/ambient.js`). A screen that leads with a care-team warning keeps its painting short, so the warning stays high. The device's reduced-motion setting and the Less motion switch in Settings both stop all of it.
 
 ## Privacy and safety
 

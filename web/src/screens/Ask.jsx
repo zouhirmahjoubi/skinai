@@ -6,7 +6,7 @@ import { withFiles, withResult } from '../lib/files.js';
 import { db, newId } from '../lib/db.js';
 import { askSession, updateAsk, useAskSession } from '../lib/askSession.js';
 import { reducedMotion } from '../lib/reduced.js';
-import { TopBar, ErrorBox, Working } from '../components.jsx';
+import { PageArt, TopBar, ErrorBox, Working } from '../components.jsx';
 import { treatmentPhase } from '../../../core/treatments.js';
 import { urgentFlags } from '../../../core/safety.js';
 import { PRODUCT_BY_ID } from '../../../core/catalog.js';
@@ -192,6 +192,7 @@ export default function Ask() {
   if (consent === false) {
     return (
       <div className="stack-lg">
+        <PageArt scene="ask" compact />
         <TopBar mode={server.mode} />
         <h1>Ask Still Me</h1>
         <section className="sheet stack">
@@ -206,6 +207,7 @@ export default function Ask() {
 
   return (
     <div className="stack-lg ask">
+      <PageArt scene="ask" compact />
       <TopBar mode={server.mode} />
       <div className="stack">
         <h1>Ask Still Me</h1>

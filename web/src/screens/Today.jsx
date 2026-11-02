@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore, useInsights } from '../lib/store.jsx';
-import { TopBar, RoadAhead, NoteCard, Icon, RedFlags, Collapse } from '../components.jsx';
+import { PageArt, TopBar, RoadAhead, NoteCard, Icon, RedFlags, Collapse } from '../components.jsx';
 import { TREATMENTS, treatmentPhase, expectationsFor } from '../../../core/treatments.js';
 import { hasAccessCode } from '../lib/api.js';
 import { reducedMotion } from '../lib/reduced.js';
@@ -53,6 +53,7 @@ export default function Today() {
 
   return (
     <div className="stack-lg">
+      <PageArt scene="hero" compact={callFirst} />
       <TopBar
         mode={server.mode}
         right={

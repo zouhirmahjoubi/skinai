@@ -4,7 +4,7 @@ import { api } from '../lib/api.js';
 import { withFiles, withResult, rememberFileId } from '../lib/files.js';
 import { db, newId, today } from '../lib/db.js';
 import { loadImage, cropToJpeg } from '../lib/image.js';
-import { TopBar, Capture, Steps, ErrorBox, CompareSlider, Disclosure, Working, Icon } from '../components.jsx';
+import { PageArt, TopBar, Capture, Steps, ErrorBox, CompareSlider, Disclosure, Working, Icon } from '../components.jsx';
 import { browPatternFor, FACE_SHAPE_TIPS, LASH_STYLES, LIP_SHADES } from '../../../core/brows.js';
 import { BROW_PRODUCTS } from '../../../core/catalog.js';
 import { closest } from '../../../core/color.js';
@@ -1081,6 +1081,7 @@ export default function Look() {
 
   return (
     <div className="stack-lg">
+      <PageArt scene="looks" />
       <TopBar mode={server.mode} />
       <div className="stack">
         <h1>Hair & brows</h1>

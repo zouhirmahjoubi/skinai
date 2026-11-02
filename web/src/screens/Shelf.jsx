@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { useStore, useInsights } from '../lib/store.jsx';
-import { TopBar, Disclosure } from '../components.jsx';
+import { PageArt, TopBar, Disclosure } from '../components.jsx';
 import { CATALOG, TYPE_LABEL, PRODUCT_BY_ID } from '../../../core/catalog.js';
 import { CLASSES, shelfContext, rankShelf, parseInci } from '../../../core/ingredients.js';
 
@@ -131,6 +131,7 @@ export default function Shelf() {
 
   return (
     <div className="stack-lg">
+      <PageArt scene="shelf" compact={flagged.some((r) => r.verdict === 'avoid')} />
       <TopBar mode={server.mode} />
       <div className="stack">
         <h1>Your gentle shelf</h1>

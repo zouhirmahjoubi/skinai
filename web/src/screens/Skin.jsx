@@ -1,5 +1,5 @@
 import { useStore } from '../lib/store.jsx';
-import { TopBar, Icon, Sparkline } from '../components.jsx';
+import { PageArt, TopBar, Icon, Sparkline } from '../components.jsx';
 import { CONCERNS, displayScore } from '../../../core/concerns.js';
 import { treatmentPhase } from '../../../core/treatments.js';
 import { sameSeries } from '../../../core/trends.js';
@@ -15,6 +15,7 @@ export default function Skin() {
 
   return (
     <div className="stack-lg">
+      <PageArt scene="check" />
       <TopBar mode={server.mode} />
       <div className="stack">
         <h1>Skin check-ins</h1>

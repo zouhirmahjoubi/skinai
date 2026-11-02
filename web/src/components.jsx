@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useScroll, useTransform } from 'motion/react';
 import * as m from 'motion/react-m';
 import { TREATMENTS, treatmentPhase, RED_FLAGS } from '../../core/treatments.js';
 import { STATUS_TEXT } from '../../core/trends.js';
@@ -62,6 +63,71 @@ export function Logo() {
 }
 
 // Frame -----------------------------------------------------------------------
+const ART = {
+  hero: { label: 'The week', position: '78% 24%' },
+  check: { label: 'Skin Watch', position: '70% 34%' },
+  shelf: { label: 'The shelf', position: '80% 36%', tone: 'light' },
+  looks: { label: 'The fitting', position: '76% 30%' },
+  ask: { label: 'The plan', position: '76% 34%' },
+  start: { label: 'Your settings', position: '74% 18%' },
+};
+const dustSeen = new Set();
+const ease = [0.16, 1, 0.3, 1];
+
+/**
+ * A screen's painting, from the welcome page, along the top: it opens downward, drifts
+ * a little as the page scrolls and fades into the paper. Gold dust rises over it the
+ * first time. `compact` keeps it short, so a care-team warning stays high on the screen.
+ * It is decoration: the screen's own heading says what the screen is.
+ */
+export function PageArt({ scene, label, compact = false }) {
+  const art = ART[scene];
+  const still = reducedMotion();
+  const canvas = useRef(null);
+  const { scrollY } = useScroll();
+  const drift = useTransform(scrollY, [0, 420], [0, 56]);
+
+  useEffect(() => {
+    const save = navigator.connection?.saveData || (navigator.deviceMemory && navigator.deviceMemory <= 2);
+    if (still || save || dustSeen.has(scene)) return undefined;
+    dustSeen.add(scene);
+    let cancelled = false;
+    let end = null;
+    const wait = setTimeout(() => {
+      import('./lib/goldDust.js')
+        .then(({ riseDust }) => {
+          if (!cancelled && canvas.current) end = riseDust(canvas.current);
+        })
+        .catch(() => {});
+    }, 220);
+    return () => {
+      cancelled = true;
+      clearTimeout(wait);
+      end?.();
+    };
+  }, [scene, still]);
+
+  const img = { src: `/scenes/${scene}-w.webp`, alt: '', decoding: 'async' };
+  return (
+    <div className={`page-art${compact ? ' compact' : ''}`} data-tone={art.tone || 'dark'} data-still aria-hidden="true">
+      {still ? (
+        <div className="page-art-frame">
+          <img {...img} style={{ objectPosition: art.position }} />
+        </div>
+      ) : (
+        <m.div className="page-art-frame" initial={{ clipPath: 'inset(0 0 100% 0)' }} animate={{ clipPath: 'inset(0 0 0% 0)' }} transition={{ duration: 0.85, ease }}>
+          <m.img {...img} style={{ objectPosition: art.position, y: drift }} initial={{ scale: 1.07 }} animate={{ scale: 1 }} transition={{ duration: 1.2, ease }} />
+        </m.div>
+      )}
+      {/* A fresh canvas per painting: the last one's WebGL context was released when its dust ended. */}
+      <canvas key={scene} ref={canvas} />
+      <span className="art-line" />
+      <span className="art-star" />
+      <span className="art-label">{label || art.label}</span>
+    </div>
+  );
+}
+
 export function TopBar({ title, back, right, mode }) {
   const { profile } = useStore();
   return (

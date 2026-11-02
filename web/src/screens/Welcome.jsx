@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 're
 import { useStore, go } from '../lib/store.jsx';
 import { enterScreen } from '../lib/enter.js';
 import { TREATMENTS, TREATMENT_KEYS } from '../../../core/treatments.js';
+import { PageArt } from '../components.jsx';
 import { today } from '../lib/db.js';
 
 // The welcome page brings GSAP and its paintings with it, so it loads on its own.
@@ -65,6 +66,7 @@ export default function Welcome() {
   if (step === 1) {
     return (
       <div className="stack-lg" ref={rootRef}>
+        <PageArt scene="hero" label="Step 1 of 3" compact />
         <div className="stack">
           <p className="muted">Step 1 of 3</p>
           <h1>Which treatments are you having?</h1>
@@ -94,6 +96,7 @@ export default function Welcome() {
   if (step === 2) {
     return (
       <div className="stack-lg" ref={rootRef}>
+        <PageArt scene="check" label="Step 2 of 3" compact />
         <div className="stack">
           <p className="muted">Step 2 of 3</p>
           <h1>When does treatment start?</h1>
@@ -117,6 +120,7 @@ export default function Welcome() {
 
   return (
     <div className="stack-lg" ref={rootRef}>
+      <PageArt scene="start" label="Step 3 of 3" compact />
       <div className="stack">
         <p className="muted">Step 3 of 3</p>
         <h1>Before you start</h1>
