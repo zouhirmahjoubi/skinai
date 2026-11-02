@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react';
+import { Fragment, useLayoutEffect, useRef } from 'react';
 import { Logo } from '../components.jsx';
 import { landingStory } from '../lib/motion.js';
 
@@ -33,6 +33,18 @@ function Arrow() {
       </svg>
     </span>
   );
+}
+
+/** A heading whose words can rise one by one, each behind its own mask. It still reads as one line of text. */
+function Words({ text }) {
+  return text.split(' ').map((word, i) => (
+    <Fragment key={i}>
+      {i > 0 && ' '}
+      <span className="hero-word">
+        <span>{word}</span>
+      </span>
+    </Fragment>
+  ));
 }
 
 /** One painting: tall on a phone, wide on a laptop. Shown only when the shared stage isn't running. */
@@ -70,12 +82,14 @@ export default function Landing({ onStart, onSample, demo, iosNote, returning = 
       <div className="stage" aria-hidden="true">
         <canvas />
       </div>
+      <canvas className="dust" aria-hidden="true" />
 
       <div className="guides" aria-hidden="true">
         <span className="guide-v" />
         <span className="guide-h" />
         <span className="guide-star" />
         <span className="guide-ticks" />
+        <span className="guide-mark" />
         <span className="guide-label">The promise</span>
       </div>
 
@@ -130,7 +144,9 @@ export default function Landing({ onStart, onSample, demo, iosNote, returning = 
           <Painting id={c.id} />
           <div className="scene-hold">
             <div className="scene-copy">
-              <h2 id={`scene-${c.id}`}>{c.title}</h2>
+              <h2 id={`scene-${c.id}`}>
+                <Words text={c.title} />
+              </h2>
               <p className="scene-note">
                 <span className="tag">{c.chip}</span>
                 <span>{c.body}</span>
@@ -144,7 +160,9 @@ export default function Landing({ onStart, onSample, demo, iosNote, returning = 
         <Painting id="start" />
         <div className="scene-hold">
           <div className="scene-copy">
-            <h2 id="final-title">Start with one selfie.</h2>
+            <h2 id="final-title">
+              <Words text="Start with one selfie." />
+            </h2>
             <div className="cta-row">
               {mainButton}
               {sampleButton}

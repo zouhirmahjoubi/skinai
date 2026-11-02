@@ -12,7 +12,8 @@ export const PALETTES = [
   { id: 'cream', name: 'Cream', swatches: ['#c9a0a7', '#3a0f34', '#c75a3a'] },
 ];
 
-const KEY = 'ahead-palette';
+// A new key, so a theme picked while testing the old design doesn't hide the new default.
+const KEY = 'still-me-palette';
 const valid = (id) => PALETTES.some((p) => p.id === id);
 
 export function getPalette() {
