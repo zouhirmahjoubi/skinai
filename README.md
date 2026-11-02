@@ -9,11 +9,11 @@
 | Criterion | What Still Me shows |
 | --- | --- |
 | **Technological implementation** | 10 YouCam AI features: 6 over REST and 4 through YouCam's hosted MCP servers (beauty and fashion), plus live unit prices read through MCP. A companion agent calls Still Me's own rule engines as tools and proposes YouCam try-ons that run only after a tap. Every YouCam task is deleted once its result is downloaded. 191 automated tests. |
-| **Design** | One journey for one person: a print of their own hair and brows before treatment, weekly skin and hair checks, try-ons for what comes next, and printable pages for the wig fitter, the insurer and the care team. Mobile first, three colour themes, and motion built for people who may feel unwell: warnings never move, nothing bounces or loops, and Settings has a Less motion switch. |
+| **Design** | One journey for one person: a print of their own hair and brows before treatment, weekly skin and hair checks, try-ons for what comes next, and printable pages for the wig fitter, the insurer and the care team. Mobile first, a painted welcome story, four colour themes, and motion built for people who may feel unwell: warnings never move, nothing bounces or loops, and Settings has a Less motion switch. |
 | **Potential impact** | For people starting chemotherapy, radiation or targeted therapy. A generic skin app reads an EGFR-inhibitor rash as acne and sells products that make it worse. A wig chosen after hair loss can't be matched to the person's own hair, and usually can't be returned once worn. |
 | **Quality of idea** | Skin AI read against the treatment and the week, not a generic score. Try-on used to keep a person recognisable to themselves: their own brows drawn back, a wig in their own colour, earrings to frame the face, and how hair might grow back. |
 
-The woman on the welcome page is AI-generated (KIE, Nano Banana 2), not a real person. Colour themes (Lotus, Orchard Market, Cream) are in Settings and on the welcome page.
+The people in the welcome page's paintings are AI-generated (KIE, Nano Banana 2), not real people. Colour themes (Fresco, Lotus, Orchard Market, Cream) are in Settings.
 
 Most people starting chemotherapy, radiation or targeted therapy are told their skin, hair and brows will change. Very few are told what that will look like, which changes matter, or what is safe to buy. Still Me is a mobile web app for that moment:
 
@@ -29,7 +29,7 @@ Most people starting chemotherapy, radiation or targeted therapy are told their 
 
 | | | |
 | --- | --- | --- |
-| <img src="docs/screenshots/2-portrait-gathering.jpg" width="260" alt="The welcome page, with the portrait gathering from points beside the words Still you"><br>**Welcome.** The portrait gathers from points with three.js, then the crisp photo takes over. | <img src="docs/screenshots/5-my-looks.jpg" width="260" alt="A lookbook of wigs, brows and earrings on one person"><br>**Looks.** Real YouCam results: wigs in your own colour, your brows, earrings, how hair might grow back. | <img src="docs/screenshots/6-ask-plan.jpg" width="260" alt="The companion planning a look for a wedding, with its cost and a Run button"><br>**Ask.** A plan from your own print with its YouCam cost. Nothing runs until you tap. |
+| <img src="docs/screenshots/2-painting-dissolve.jpg" width="260" alt="The welcome page, with one painting breaking into dots and settling into the next"><br>**Welcome.** A run of oil paintings, one for each part of the app. As you scroll, each breaks into dots and settles into the next. | <img src="docs/screenshots/5-my-looks.jpg" width="260" alt="A lookbook of wigs, brows and earrings on one person"><br>**Looks.** Real YouCam results: wigs in your own colour, your brows, earrings, how hair might grow back. | <img src="docs/screenshots/6-ask-plan.jpg" width="260" alt="The companion planning a look for a wedding, with its cost and a Run button"><br>**Ask.** A plan from your own print with its YouCam cost. Nothing runs until you tap. |
 | <img src="docs/screenshots/3-care-team-note.jpg" width="260" alt="A check-in note saying this is an acne-like rash, tell your care team"><br>**Today.** A score drop read against the treatment: the EGFR rash, with what to do. | <img src="docs/screenshots/4-shelf-warning.jpg" width="260" alt="A warning that a saved acne gel is no longer right, above the shelf"><br>**Shelf.** Something you saved stopped being right for you, and it says so first. | <img src="docs/screenshots/7-print.jpg" width="260" alt="Hair and brow print with measured colours and face shape"><br>**Print.** Your own colours and shapes, kept for your wig specialist. |
 
 These show the labelled sample journey. The face is an AI-generated portrait, never a real person, and its looks are real YouCam results.
@@ -127,10 +127,10 @@ core/ rule engines run in the browser:
 
 ## Motion
 
-Three tools, each where it fits, all split so the app screens stay light (about 134 kB of JavaScript after compression, against about 274 kB before).
+Three tools, each where it fits, split so the app screens stay light (about 134 kB of JavaScript after compression; the welcome page adds about 51 kB).
 
-- **three.js** (welcome page only): the portrait gathers from thousands of points, face first and hair last, then the crisp photo takes over and the scene is thrown away, so nothing keeps running (`web/src/lib/portrait3d.js`). If WebGL is slow or missing, the photo simply shows.
-- **GSAP and ScrollTrigger** (welcome page only): the headline rises word by word, and scroll drives the story of real app screens, with one phone staying in view on wide screens (`web/src/lib/motion.js`). Nothing is pinned or hijacked.
+- **A small WebGL shader** (welcome page only): eight paintings share one canvas, and scroll position decides how far one has broken into dots and settled into the next (`web/src/lib/scenes.js`). It draws only when the scroll moves, so nothing runs while the page is still. If WebGL is slow or missing, each chapter simply shows its own painting.
+- **GSAP and ScrollTrigger** (welcome page only): the headline rises word by word, and words that have been read ease away (`web/src/lib/motion.js`). The scroll stays the browser's own: words hold in place with plain CSS `position: sticky`, and nothing is hijacked.
 - **Motion** (the app): screen changes, rows that open in place, chat messages, plan cards and try-on results (`LazyMotion` with the `m` component, in `web/src/App.jsx`, `components.jsx` and `screens/Ask.jsx`).
 
 People on treatment can have nausea or blurred vision, so warnings never move, nothing bounces, and the soft background glides when a screen opens, then holds still (plain WebGL, `web/src/lib/ambient.js`). The device's reduced-motion setting and the Less motion switch in Settings both stop all of it.

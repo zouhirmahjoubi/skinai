@@ -1,8 +1,9 @@
 import { createRoot } from 'react-dom/client';
 import '@fontsource/atkinson-hyperlegible/latin-400.css';
 import '@fontsource/atkinson-hyperlegible/latin-700.css';
-import '@fontsource/literata/latin-600.css';
-import '@fontsource/literata/latin-400-italic.css';
+import '@fontsource-variable/newsreader/opsz.css';
+import '@fontsource-variable/newsreader/opsz-italic.css';
+import '@fontsource/dm-mono/latin-500.css';
 import './styles.css';
 import { StoreProvider } from './lib/store.jsx';
 import { applyPalette, getPalette } from './lib/palette.js';
@@ -15,12 +16,12 @@ applyPalette(getPalette());
 applyLessMotion();
 
 // The welcome page is the likely first screen at the home address: start its
-// portrait and code early, without making the journal screens wait for them.
+// first painting and code early, without making the journal screens wait for them.
 if (!window.location.hash || window.location.hash === '#/') {
   const link = document.createElement('link');
   link.rel = 'preload';
   link.as = 'image';
-  link.href = '/portrait/portrait.webp';
+  link.href = window.matchMedia('(max-aspect-ratio: 1/1)').matches ? '/scenes/hero-t.webp' : '/scenes/hero-w.webp';
   link.fetchPriority = 'high';
   document.head.append(link);
   import('./screens/Landing.jsx').catch(() => {}); // the screen itself reports a failure

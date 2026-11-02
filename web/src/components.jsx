@@ -8,7 +8,7 @@ import { reducedMotion } from './lib/reduced.js';
 import { useStore } from './lib/store.jsx';
 import { PALETTES, usePalette } from './lib/palette.js';
 
-/** Colour theme buttons (Lotus, Orchard Market, Cream), each with its three colours. */
+/** Colour theme buttons (Fresco, Lotus, Orchard Market, Cream), each with its three colours. */
 export function PaletteSwitcher() {
   const [palette, setPalette] = usePalette();
   return (
@@ -54,9 +54,9 @@ export function Icon({ name, title }) {
 export function Logo() {
   return (
     <svg viewBox="0 0 64 64" aria-hidden="true">
-      <rect width="64" height="64" rx="16" fill="var(--accent)" />
-      <path d="M12 42 C 22 42, 26 22, 36 22 S 48 30, 52 30" fill="none" stroke="var(--tint)" strokeWidth="5" strokeLinecap="round" />
-      <circle cx="36" cy="22" r="6" fill="#fff" /> {/* ds-allow-hardcode: the logo is the same in every theme */}
+      <rect width="64" height="64" rx="14" fill="var(--logo-tile, var(--accent))" />
+      <ellipse cx="32" cy="32" rx="16" ry="21" fill="none" stroke="var(--logo-ink, var(--accent-ink))" strokeOpacity="0.55" strokeWidth="3.5" />
+      <path d="M23 31 C 27 24, 36 24, 41 29" fill="none" stroke="var(--logo-ink, var(--accent-ink))" strokeWidth="3.5" strokeLinecap="round" />
     </svg>
   );
 }

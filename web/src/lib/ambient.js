@@ -1,6 +1,5 @@
-// The ambient background: one full-screen shader drawing three soft hazes
-// (lilac, pine, oatmeal). Plain WebGL, so app screens never download three.js.
-// It does not loop: the hazes glide for a moment when a screen opens, then hold
+// The ambient background: one full-screen shader drawing three soft hazes.
+// Plain WebGL, so it costs the app screens almost nothing. It does not loop: the hazes glide for a moment when a screen opens, then hold
 // still, because a background that keeps drifting costs battery and can make
 // someone on treatment feel sick. Colours come from the --paper and --ambient-*
 // tokens, so they follow the themes.
